@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  /* palette — warm bakery kitchen: buttercream, cherry-raspberry, kraft paper, cacao ink */
+  --color-cream: #fbf3e6;
+  --color-cream-dark: #f3e6d0;
+  --color-butter: #f3d9a0;
+  --color-cherry: #c2453b;
+  --color-cherry-dark: #9c332b;
+  --color-rose: #dd9aa0;
+  --color-rose-light: #f2d9db;
+  --color-kraft: #c9a876;
+  --color-kraft-dark: #a3814f;
+  --color-cacao: #3c2a1e;
+  --color-cacao-soft: #6b5646;
+
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-script: "Caveat", cursive;
+  --font-body: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-stamp: "Space Mono", ui-monospace, monospace;
+
+  --shadow-card: 0 18px 40px -18px rgb(60 42 30 / 0.35);
+  --shadow-tag: 0 6px 14px -6px rgb(60 42 30 / 0.45);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--color-cacao);
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-cream);
+    color: var(--color-cacao);
+    font-family: var(--font-body);
+    overscroll-behavior-y: none;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
+  ::selection {
+    background-color: var(--color-cherry);
+    color: var(--color-cream);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-cherry);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
