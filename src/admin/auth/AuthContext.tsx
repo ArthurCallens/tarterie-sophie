@@ -29,5 +29,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
-  return <AuthContext.Provider value={{ session, loading, signIn, signOut }}>{children}</AuthContext.Provider>;
+  async function sendPasswordResetEmail(email: string) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/admin/reset-password`,
+    });
+    return { error: error?.message ?? null };
+  }
+
+  async function updatePassword(password: string) {
+    const { error } = await supabase.auth.updateUser({ password });
+    return { error: error?.message ?? null };
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{ session, loading, signIn, signOut, sendPasswordResetEmail, updatePassword }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }

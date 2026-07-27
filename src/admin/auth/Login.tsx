@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, type Location } from "react-router-dom";
+import { Link, Navigate, useLocation, type Location } from "react-router-dom";
 import { useAuth } from "./useAuth";
 
 export function Login() {
@@ -66,6 +66,10 @@ export function Login() {
         >
           {submitting ? "Bezig met inloggen…" : "Inloggen"}
         </button>
+
+        <Link to="/admin/forgot-password" className="mt-4 block text-center text-sm text-cacao-soft underline">
+          Wachtwoord vergeten?
+        </Link>
       </form>
     </div>
   );

@@ -2,6 +2,11 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { ADMIN_NAV } from "./nav-config";
 
+const linkClasses = ({ isActive }: { isActive: boolean }) =>
+  `rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
+    isActive ? "bg-cherry text-cream" : "text-cacao-soft hover:bg-cream hover:text-cacao"
+  }`;
+
 export function AdminSidebar() {
   const { signOut } = useAuth();
 
@@ -13,28 +18,25 @@ export function AdminSidebar() {
 
         <nav className="mt-8 flex flex-col gap-1">
           {ADMIN_NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                  isActive ? "bg-cherry text-cream" : "text-cacao-soft hover:bg-cream hover:text-cacao"
-                }`
-              }
-            >
+            <NavLink key={item.to} to={item.to} className={linkClasses}>
               {item.label}
             </NavLink>
           ))}
         </nav>
       </div>
 
-      <button
-        type="button"
-        onClick={() => void signOut()}
-        className="rounded-xl px-4 py-2.5 text-left text-sm font-medium text-cacao-soft hover:bg-cream hover:text-cacao"
-      >
-        Uitloggen
-      </button>
+      <div className="flex flex-col gap-1">
+        <NavLink to="/admin/account" className={linkClasses}>
+          Account
+        </NavLink>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="rounded-xl px-4 py-2.5 text-left text-sm font-medium text-cacao-soft hover:bg-cream hover:text-cacao"
+        >
+          Uitloggen
+        </button>
+      </div>
     </aside>
   );
 }
