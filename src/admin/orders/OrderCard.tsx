@@ -596,8 +596,10 @@ export function OrderCard({
                 )}
                 <button
                   type="button"
+                  disabled={!paid}
+                  title={!paid ? "Vink eerst 'Al betaald' aan om te kunnen archiveren" : undefined}
                   onClick={() => onArchive?.(order)}
-                  className="rounded-full bg-cacao/10 px-4 py-1.5 text-xs font-semibold text-cacao-soft hover:bg-cacao/20"
+                  className="rounded-full bg-cacao/10 px-4 py-1.5 text-xs font-semibold text-cacao-soft hover:bg-cacao/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Archiveren
                 </button>
