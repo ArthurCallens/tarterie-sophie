@@ -151,11 +151,20 @@ export function OrderCard({
     onDecline?.(order);
   }
 
+  /**
+   * The single save action for an accepted order — persists both the
+   * contact-info edits (name/email/phone, above) and price/notes together.
+   * Having two separate "save" buttons on the same card was the real bug:
+   * clicking the price save without also saving contact edits looked fine
+   * (the input kept showing the typed value) but never wrote the contact
+   * fields to the database, so they'd revert on the next real page load.
+   */
   async function handleSave() {
-    if (!onSaveDetails || saving) return;
+    if (saving) return;
     setSaving(true);
     try {
-      await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
+      if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+      if (onSaveDetails) await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
     } finally {
       setSaving(false);
     }
@@ -238,6 +247,9 @@ export function OrderCard({
             <>
               {isEditingContactOnly ? (
                 <div className="mt-2 space-y-1.5">
+                  <p className="text-[11px] text-cacao-soft/70">
+                    Aanpasbaar — wordt opgeslagen samen met prijs/notities via "Opslaan" hieronder.
+                  </p>
                   <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                     Naam
                     <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
@@ -263,13 +275,6 @@ export function OrderCard({
                     />
                     <OriginalHint current={phone} original={order.customer_phone ?? ""} />
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveFields()}
-                    className={`rounded-full bg-cacao/10 px-3 py-1 text-xs font-semibold text-cacao-soft hover:bg-cacao/20 ${savingFields ? "pointer-events-none opacity-60" : ""}`}
-                  >
-                    {savingFields ? "Bezig met opslaan…" : "Contactgegevens opslaan"}
-                  </button>
                 </div>
               ) : (
                 <p className="text-cacao-soft">{order.customer_email}</p>
