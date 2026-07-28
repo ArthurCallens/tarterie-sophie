@@ -1,16 +1,41 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ALLERGENS } from "../../lib/data";
+import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
-import type { Invoice, Order, OrderEditableFields } from "../../lib/supabase/types";
+import type { Invoice, Order, OrderDeclineFields, OrderEditableFields } from "../../lib/supabase/types";
+import { DeclineOrderModal } from "./DeclineOrderModal";
+import type { SupersededInvoice } from "./useOrders";
+
+/**
+ * Opens a signed URL to an invoice PDF in a new tab. Opens the tab
+ * synchronously (before the async signed-URL fetch) and points it at the
+ * result afterwards — browsers block `window.open` calls that happen after
+ * an `await`, since by then it no longer looks like a direct response to the
+ * click that triggered it.
+ */
+async function openInvoicePdf(pdfStoragePath: string) {
+  const tab = window.open("", "_blank");
+  try {
+    const url = await getInvoiceProofUrl(pdfStoragePath, 300);
+    if (tab) tab.location.href = url;
+  } catch (err) {
+    tab?.close();
+    window.alert(err instanceof Error ? err.message : "Kon factuur niet openen.");
+  }
+}
 
 type OrderCardProps = {
   order: Order;
-  /** The invoice generated for this order (once accepted), if any. */
+  /** The order's currently active (non-superseded) invoice, if any. */
   invoice?: Invoice | null;
+  /** Superseded (voided) invoices for this order, newest first — shown as an audit trail. */
+  invoiceHistory?: SupersededInvoice[];
+  /** True once the order's live data no longer matches what the active, already-sent invoice says. */
+  isInvoiceStale?: boolean;
   /** Pure display, no action controls at all (e.g. the Kalender day view). */
   readOnly?: boolean;
   onAccept?: (order: Order, price: number) => void;
-  onDecline?: (order: Order) => void;
+  onDecline?: (order: Order, fields: OrderDeclineFields) => void;
   onSaveDetails?: (order: Order, fields: { price: number | null; notes: string | null }) => void;
   onSaveFields?: (order: Order, fields: OrderEditableFields) => void;
   onArchive?: (order: Order) => void;
@@ -20,7 +45,19 @@ type OrderCardProps = {
   onResendInvoice?: (order: Order) => void;
 };
 
-type FieldKey = "name" | "email" | "phone" | "occasion" | "servings" | "flavor" | "allergens" | "pickupDate" | "message";
+type FieldKey =
+  | "name"
+  | "email"
+  | "phone"
+  | "occasion"
+  | "servings"
+  | "flavor"
+  | "allergens"
+  | "pickupDate"
+  | "message"
+  | "price";
+
+const AUTOSAVE_DELAY_MS = 800;
 
 function TrashIcon() {
   return (
@@ -87,7 +124,9 @@ function EditableField({
   onUnlock,
   type = "text",
   min,
+  step,
   multiline,
+  hint,
 }: {
   label: string;
   value: string;
@@ -97,7 +136,10 @@ function EditableField({
   onUnlock: () => void;
   type?: "text" | "email" | "tel" | "number" | "date";
   min?: number;
+  step?: number | string;
   multiline?: boolean;
+  /** Replaces the "Klant vulde in: ..." line below — for fields with no client-submitted original (e.g. price). */
+  hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -116,6 +158,7 @@ function EditableField({
           <input
             type={type}
             min={min}
+            step={step}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className={inputClass}
@@ -124,8 +167,10 @@ function EditableField({
       ) : (
         <p className="rounded-lg bg-cream px-3 py-1.5 text-cacao">{value || "—"}</p>
       )}
-      {original !== value && (
-        <p className="text-[11px] text-cacao-soft/70">Klant vulde in: {original || "(leeg)"}</p>
+      {hint ? (
+        <p className="text-[11px] text-cacao-soft/70">{hint}</p>
+      ) : (
+        original !== value && <p className="text-[11px] text-cacao-soft/70">Klant vulde in: {original || "(leeg)"}</p>
       )}
     </div>
   );
@@ -188,9 +233,24 @@ function AllergensField({
   );
 }
 
+function declineEmailStatusLabel(status: Order["decline_email_status"]): string {
+  switch (status) {
+    case "sent":
+      return "e-mail verzonden";
+    case "failed":
+      return "e-mail versturen mislukt";
+    case "pending":
+      return "e-mail wordt verzonden…";
+    default:
+      return "";
+  }
+}
+
 export function OrderCard({
   order,
   invoice,
+  invoiceHistory,
+  isInvoiceStale = false,
   readOnly = false,
   onAccept,
   onDecline,
@@ -205,9 +265,14 @@ export function OrderCard({
   const [expanded, setExpanded] = useState(false);
   const [price, setPrice] = useState(order.price === null ? "" : String(order.price));
   const [notes, setNotes] = useState(order.notes ?? "");
-  const [saving, setSaving] = useState(false);
   const [paid, setPaid] = useState(invoice?.paid ?? false);
   const [resending, setResending] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [declineModalOpen, setDeclineModalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const parsedPrice = parsePrice(price);
 
   async function handleTogglePaid(checked: boolean) {
@@ -250,46 +315,102 @@ export function OrderCard({
     };
   }
 
-  async function handleAccept() {
-    if (parsedPrice === null) return;
+  // Always call these two together — a save that persists field edits but
+  // not price/notes (or vice versa) looks fine in the UI but silently loses
+  // half the change on the next real page load.
+  async function flushEdits() {
     if (onSaveFields) await onSaveFields(order, currentFieldEdits());
-    setUnlocked(new Set());
-    onAccept?.(order, parsedPrice);
-  }
-
-  async function handleDecline() {
-    if (onSaveFields) await onSaveFields(order, currentFieldEdits());
-    setUnlocked(new Set());
-    onDecline?.(order);
+    if (onSaveDetails) await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
   }
 
   /**
-   * The single save action for an accepted order — persists both the
-   * client-field edits (above) and price/notes together. Having separate
-   * "save" buttons on the same card was a real bug in an earlier version:
-   * clicking one without the other looked fine (the input kept showing the
-   * typed value) but silently never wrote part of it to the database, so it
-   * reverted on the next real page load.
+   * Compares what's currently typed on screen — even if autosave hasn't
+   * committed it yet — against the active invoice's snapshot. `isInvoiceStale`
+   * (a prop, computed server-side from the last-fetched `order`) can't see an
+   * edit made in the last ~800ms; this can, so Archiveren can't be clicked
+   * during that window either.
    */
-  async function handleSave() {
-    if (saving) return;
-    setSaving(true);
+  function liveMismatchesInvoice(): boolean {
+    if (!invoice || invoice.status !== "sent") return false;
+    const snap = invoice.snapshot;
+    return (
+      parsedPrice !== snap.price ||
+      name !== snap.customer_name ||
+      email !== snap.customer_email ||
+      occasion !== snap.occasion ||
+      (Number(servings) || 0) !== snap.servings ||
+      flavor !== snap.flavor ||
+      pickupDate !== snap.pickup_date
+    );
+  }
+
+  /**
+   * Autosave for an accepted order's editable fields — no "Opslaan" button.
+   * `latestRef` always holds the most recent `order`/save-callback
+   * references without being a dependency of the debounce effect itself:
+   * including them there would re-trigger a save on every parent refresh
+   * (both callbacks are recreated every render), causing an infinite
+   * save → refresh → save loop instead of only saving on real edits.
+   */
+  const latestRef = useRef({ order, onSaveFields, onSaveDetails });
+  useEffect(() => {
+    latestRef.current = { order, onSaveFields, onSaveDetails };
+  });
+
+  const skipNextAutosave = useRef(true);
+  useEffect(() => {
+    if (order.status !== "accepted") return;
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false;
+      return;
+    }
+    setSaveStatus("saving");
+    const timer = setTimeout(() => {
+      void (async () => {
+        const { order: latestOrder, onSaveFields: saveFieldsFn, onSaveDetails: saveDetailsFn } = latestRef.current;
+        if (saveFieldsFn) await saveFieldsFn(latestOrder, currentFieldEdits());
+        if (saveDetailsFn)
+          await saveDetailsFn(latestOrder, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
+        setSaveStatus("saved");
+      })();
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.status, name, email, phone, occasion, servings, flavor, allergens, pickupDate, message, price, notes]);
+
+  async function handleAccept() {
+    if (parsedPrice === null || accepting) return;
+    setAccepting(true);
     try {
       if (onSaveFields) await onSaveFields(order, currentFieldEdits());
-      if (onSaveDetails) await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
       setUnlocked(new Set());
+      await onAccept?.(order, parsedPrice);
     } finally {
-      setSaving(false);
+      setAccepting(false);
     }
+  }
+
+  function handleDeclineClick() {
+    setDeclineModalOpen(true);
+  }
+
+  async function handleDeclineConfirm(fields: OrderDeclineFields) {
+    setDeclineModalOpen(false);
+    if (order.status === "pending" && onSaveFields) await onSaveFields(order, currentFieldEdits());
+    setUnlocked(new Set());
+    onDecline?.(order, fields);
   }
 
   async function handleResend() {
     if (!onResendInvoice || resending) return;
-    if (!window.confirm(`Factuur opnieuw versturen naar ${email}?`)) return;
+    const question = isInvoiceStale
+      ? `Gegevens zijn gewijzigd sinds de laatste factuur. Nieuwe factuur (${email}) versturen? De vorige wordt ongeldig.`
+      : `Factuur opnieuw versturen naar ${email}?`;
+    if (!window.confirm(question)) return;
     setResending(true);
     try {
-      // Persist any corrected contact info first, so the resend uses it.
-      if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+      // Persist any corrected contact info/price first, so the invoice uses it.
+      await flushEdits();
       setUnlocked(new Set());
       await onResendInvoice(order);
     } finally {
@@ -297,10 +418,26 @@ export function OrderCard({
     }
   }
 
-  function handleSoftDelete() {
-    if (!onDecline) return;
-    if (!window.confirm(`Bestelling van "${order.customer_name}" verwijderen? Ze verhuist naar Geweigerd.`)) return;
-    onDecline(order);
+  async function handleArchive() {
+    if (!onArchive || archiving) return;
+    setArchiving(true);
+    try {
+      await onArchive(order);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Archiveren is niet gelukt.");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!onRestore || parsedPrice === null || restoring) return;
+    setRestoring(true);
+    try {
+      await onRestore(order, parsedPrice);
+    } finally {
+      setRestoring(false);
+    }
   }
 
   function handleHardDelete() {
@@ -319,6 +456,14 @@ export function OrderCard({
 
   return (
     <div className="rounded-2xl border border-cacao/10 bg-cream-dark p-4 text-sm">
+      {declineModalOpen && (
+        <DeclineOrderModal
+          customerName={order.customer_name}
+          onCancel={() => setDeclineModalOpen(false)}
+          onConfirm={(fields) => void handleDeclineConfirm(fields)}
+        />
+      )}
+
       <div
         role="button"
         tabIndex={0}
@@ -333,7 +478,16 @@ export function OrderCard({
       >
         <div className="min-w-0">
           <p className="truncate font-medium text-cacao">{order.customer_name}</p>
-          {!expanded && <p className="truncate text-xs text-cacao-soft">{summaryParts.join(" · ")}</p>}
+          {!expanded && (
+            <p className="truncate text-xs text-cacao-soft">
+              {summaryParts.join(" · ")}
+              {isInvoiceStale && (
+                <span className="ml-1.5 rounded-full bg-cherry/15 px-1.5 py-0.5 font-medium text-cherry">
+                  ⚠ Gegevens gewijzigd
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <p className="whitespace-nowrap text-xs text-cacao-soft">{order.pickup_date}</p>
@@ -359,9 +513,16 @@ export function OrderCard({
         <>
           {isEditableStatus ? (
             <div className="mt-3 space-y-3 border-t border-cacao/10 pt-3">
-              <p className="text-[11px] text-cacao-soft/70">
-                Klik "Wijzig" om een veld aan te passen — handig als de klant nog iets anders wil.
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-cacao-soft/70">
+                  Klik "Wijzig" om een veld aan te passen — handig als de klant nog iets anders wil.
+                </p>
+                {order.status === "accepted" && saveStatus !== "idle" && (
+                  <p className="shrink-0 text-[11px] font-medium text-cacao-soft">
+                    {saveStatus === "saving" ? "Bezig met opslaan…" : "Opgeslagen ✓"}
+                  </p>
+                )}
+              </div>
               <EditableField
                 label="Naam"
                 value={name}
@@ -506,15 +667,16 @@ export function OrderCard({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={parsedPrice === null}
+                  disabled={parsedPrice === null || accepting}
                   onClick={() => void handleAccept()}
                   className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Accepteren
+                  {accepting ? "Bezig met accepteren…" : "Accepteren"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleDecline()}
+                  disabled={accepting}
+                  onClick={handleDeclineClick}
                   className="rounded-full bg-cacao/10 px-4 py-1.5 text-xs font-semibold text-cacao-soft hover:bg-cacao/20"
                 >
                   Weigeren
@@ -525,18 +687,17 @@ export function OrderCard({
 
           {!readOnly && order.status === "accepted" && (
             <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Prijs (EUR)
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="Bv. 45"
-                  className={inputClass}
-                />
-              </label>
+              <EditableField
+                label="Prijs (EUR)"
+                value={price}
+                original={price}
+                onChange={setPrice}
+                unlocked={unlocked.has("price")}
+                onUnlock={() => unlock("price")}
+                type="number"
+                min={0}
+                step="0.01"
+              />
               <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                 Notities
                 <textarea
@@ -561,6 +722,53 @@ export function OrderCard({
                         ? "mislukt"
                         : "bezig met versturen"}
                   </p>
+                  {isInvoiceStale && (
+                    <div className="mt-1.5 rounded-md bg-cherry/10 px-2 py-1.5 font-medium text-cherry">
+                      <p>Gegevens gewijzigd sinds de laatste factuur — verstuur een nieuwe factuur.</p>
+                      {invoice.pdf_storage_path && (
+                        <button
+                          type="button"
+                          onClick={() => void openInvoicePdf(invoice.pdf_storage_path!)}
+                          className="mt-1 text-[11px] underline decoration-dotted"
+                        >
+                          Vorige factuur bekijken (om te vergelijken met de huidige gegevens)
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {invoiceHistory && invoiceHistory.length > 0 && (
+                    <div className="mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryOpen((v) => !v)}
+                        className="text-[11px] font-medium text-cacao-soft underline decoration-dotted"
+                      >
+                        Factuurgeschiedenis ({invoiceHistory.length})
+                      </button>
+                      {historyOpen && (
+                        <ul className="mt-1 space-y-0.5">
+                          {invoiceHistory.map((old) => (
+                            <li key={old.id} className="text-[11px] text-cacao-soft/70">
+                              {old.invoice_number} —{" "}
+                              {old.replacedByNumber ? `ongeldig, vervangen door ${old.replacedByNumber}` : "ongeldig (bestelling werd geweigerd)"}
+                              {old.pdf_storage_path && (
+                                <>
+                                  {" · "}
+                                  <button
+                                    type="button"
+                                    onClick={() => void openInvoicePdf(old.pdf_storage_path!)}
+                                    className="underline decoration-dotted"
+                                  >
+                                    bekijk
+                                  </button>
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   <label className="mt-1.5 flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -574,38 +782,55 @@ export function OrderCard({
                 <p className="rounded-lg bg-cacao/5 px-3 py-2 text-xs text-cacao-soft">Factuur wordt gegenereerd…</p>
               )}
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  className={`rounded-full bg-cherry/15 px-4 py-1.5 text-xs font-semibold text-cherry hover:bg-cherry/25 ${saving ? "pointer-events-none opacity-60" : ""}`}
-                >
-                  {saving ? "Bezig met opslaan…" : "Opslaan"}
-                </button>
                 {onResendInvoice && (
                   <button
                     type="button"
                     onClick={() => void handleResend()}
                     className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
-                      invoice?.status === "failed"
+                      invoice?.status === "failed" || isInvoiceStale
                         ? "bg-cherry text-cream hover:bg-cherry-dark"
                         : "bg-cacao/10 text-cacao-soft hover:bg-cacao/20"
                     } ${resending ? "pointer-events-none opacity-60" : ""}`}
                   >
-                    {resending ? "Bezig met versturen…" : invoice ? "Factuur opnieuw versturen" : "Factuur versturen"}
+                    {resending
+                      ? "Bezig met versturen…"
+                      : !invoice
+                        ? "Factuur versturen"
+                        : isInvoiceStale
+                          ? "Nieuwe factuur versturen"
+                          : "Factuur opnieuw versturen"}
                   </button>
                 )}
                 <button
                   type="button"
-                  disabled={!paid}
-                  title={!paid ? "Vink eerst 'Al betaald' aan om te kunnen archiveren" : undefined}
-                  onClick={() => onArchive?.(order)}
+                  disabled={
+                    !paid ||
+                    !invoice ||
+                    invoice.status !== "sent" ||
+                    isInvoiceStale ||
+                    liveMismatchesInvoice() ||
+                    saveStatus === "saving" ||
+                    archiving
+                  }
+                  title={
+                    saveStatus === "saving"
+                      ? "Wacht tot de wijzigingen opgeslagen zijn"
+                      : !paid
+                        ? "Vink eerst 'Al betaald' aan om te kunnen archiveren"
+                        : !invoice || invoice.status !== "sent"
+                          ? "Wacht tot de factuur verzonden is voor je kan archiveren"
+                          : isInvoiceStale || liveMismatchesInvoice()
+                            ? "Verstuur eerst een nieuwe factuur — de gegevens zijn gewijzigd sinds de laatste factuur"
+                            : undefined
+                  }
+                  onClick={() => void handleArchive()}
                   className="rounded-full bg-cacao/10 px-4 py-1.5 text-xs font-semibold text-cacao-soft hover:bg-cacao/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Archiveren
+                  {archiving ? "Bezig met archiveren…" : "Archiveren"}
                 </button>
                 <button
                   type="button"
-                  onClick={handleSoftDelete}
+                  onClick={handleDeclineClick}
                   className="rounded-full bg-cherry/10 px-4 py-1.5 text-xs font-semibold text-cherry hover:bg-cherry/20"
                 >
                   Verwijderen
@@ -614,33 +839,44 @@ export function OrderCard({
             </div>
           )}
 
-          {!readOnly && order.status === "declined" && onRestore && (
+          {!readOnly && order.status === "declined" && (
             <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
               <p className="text-xs text-cacao-soft">
-                {invoice?.status === "sent"
-                  ? "Er is al een factuur verzonden voor deze bestelling — die wordt niet automatisch opnieuw gestuurd."
-                  : "Er is nog geen factuur succesvol verzonden — bij herstellen wordt er automatisch één verstuurd."}
+                {order.decline_notify
+                  ? `Reden: "${order.decline_reason}"${
+                      order.decline_email_status ? ` — ${declineEmailStatusLabel(order.decline_email_status)}` : ""
+                    }`
+                  : "Geen reden opgegeven — er is geen e-mail verstuurd."}
               </p>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Prijs (EUR) — vereist om te herstellen
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="Bv. 45"
-                  className={inputClass}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={parsedPrice === null}
-                onClick={() => parsedPrice !== null && onRestore(order, parsedPrice)}
-                className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Terug naar geaccepteerd
-              </button>
+              {onRestore && (
+                <>
+                  <p className="text-xs text-cacao-soft">
+                    Bij herstellen wordt er automatisch een nieuwe factuur verstuurd — ook als de prijs niet
+                    verandert. Een geweigerde bestelling die opnieuw geaccepteerd wordt, krijgt altijd een eigen
+                    factuurnummer.
+                  </p>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                    Prijs (EUR) — vereist om te herstellen
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="Bv. 45"
+                      className={inputClass}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={parsedPrice === null || restoring}
+                    onClick={() => void handleRestore()}
+                    className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {restoring ? "Bezig met herstellen…" : "Terug naar geaccepteerd"}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

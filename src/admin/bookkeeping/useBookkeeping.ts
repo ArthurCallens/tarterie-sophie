@@ -24,14 +24,17 @@ const EXPENSE_TYPE_LABEL: Record<ExpenseEntry["expense_type"], string> = {
   fixed: "Vaste kost",
 };
 
+/**
+ * Only archived orders count as income — merely "accepted" isn't final yet
+ * (price/details can still change, the invoice can still be superseded), and
+ * the whole point of the archive gate (useOrders.ts's `archive()`) is that
+ * archiving is the moment Sophie has confirmed the invoice is correct and
+ * paid. Counting it earlier could show income in the ledger that doesn't
+ * match what's actually been invoiced.
+ */
 function orderIncomeEntries(orders: Order[], invoicesByOrderId: Map<string, Invoice>): LedgerEntry[] {
   return orders
-    .filter(
-      (order) =>
-        (order.status === "accepted" || order.status === "archived") &&
-        order.price !== null &&
-        !order.excluded_from_bookkeeping,
-    )
+    .filter((order) => order.status === "archived" && order.price !== null && !order.excluded_from_bookkeeping)
     .map((order) => {
       const invoice = invoicesByOrderId.get(order.id);
       return {
@@ -115,9 +118,13 @@ export function useBookkeeping() {
     void refresh();
   }, [refresh]);
 
+  // Only the active (non-superseded) invoice per order — a voided invoice
+  // must never be what the ledger's proof/paid status points at.
   const invoicesByOrderId = useMemo(() => {
     const map = new Map<string, Invoice>();
-    for (const invoice of invoices) map.set(invoice.order_id, invoice);
+    for (const invoice of invoices) {
+      if (invoice.status !== "superseded") map.set(invoice.order_id, invoice);
+    }
     return map;
   }, [invoices]);
 

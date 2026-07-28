@@ -12,14 +12,15 @@ type SendOutlookEmailInput = {
   to: string;
   subject: string;
   body: string;
-  pdfBuffer: Buffer;
-  filename: string;
+  /** Omit for a plain-text email with no attachment (e.g. a decline notice). */
+  pdfBuffer?: Buffer;
+  filename?: string;
 };
 
 /**
- * Sends an email with a PDF attachment through Sophie's Outlook/Microsoft account,
- * connected once via Composio (COMPOSIO_OUTLOOK_CONNECTED_ACCOUNT_ID identifies
- * that connection).
+ * Sends an email — optionally with a PDF attachment — through Sophie's
+ * Outlook/Microsoft account, connected once via Composio
+ * (COMPOSIO_OUTLOOK_CONNECTED_ACCOUNT_ID identifies that connection).
  *
  * Uses the file-upload + tools.execute flow documented by @composio/core: file
  * arguments must be staged via `composio.files.upload()` first, then passed as
@@ -33,13 +34,15 @@ type SendOutlookEmailInput = {
  * with a `to_email` field that 404s when actually executed).
  */
 export async function sendOutlookWithAttachment({ to, subject, body, pdfBuffer, filename }: SendOutlookEmailInput) {
-  const file = new File([new Uint8Array(pdfBuffer)], filename, { type: "application/pdf" });
-
-  const uploadedAttachment = await composio.files.upload({
-    file,
-    toolSlug: "OUTLOOK_SEND_EMAIL",
-    toolkitSlug: "outlook",
-  });
+  let uploadedAttachment: Awaited<ReturnType<typeof composio.files.upload>> | undefined;
+  if (pdfBuffer && filename) {
+    const file = new File([new Uint8Array(pdfBuffer)], filename, { type: "application/pdf" });
+    uploadedAttachment = await composio.files.upload({
+      file,
+      toolSlug: "OUTLOOK_SEND_EMAIL",
+      toolkitSlug: "outlook",
+    });
+  }
 
   await composio.tools.execute("OUTLOOK_SEND_EMAIL", {
     userId: COMPOSIO_USER_ID,
@@ -50,7 +53,7 @@ export async function sendOutlookWithAttachment({ to, subject, body, pdfBuffer, 
       subject,
       body,
       is_html: false,
-      attachment: uploadedAttachment,
+      ...(uploadedAttachment ? { attachment: uploadedAttachment } : {}),
     },
   });
 }

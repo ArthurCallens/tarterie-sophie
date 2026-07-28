@@ -1,20 +1,16 @@
-// Lets Sophie manually (re)send an accepted order's invoice from the
-// dashboard — e.g. she accepted an order, the invoice bounced because the
-// email was wrong, she corrected it, and now wants to force a fresh send; or
-// the price/details changed after the invoice was already sent, in which
-// case generate-invoice-and-send automatically supersedes the old invoice
-// and issues a brand-new invoice number (see generateInvoicePdf.ts).
-// Unlike the automatic Postgres-webhook path (invoice-webhook), this always
-// sends, bypassing the "already sent, nothing changed" idempotency guard in
-// generate-invoice-and-send.
+// Lets Sophie send the decline-reason email for an order she just rejected,
+// from the dashboard. Unlike invoicing, there's no automatic Postgres-trigger
+// path here — the reason is freeform text entered at the moment of declining
+// (see DeclineOrderModal.tsx), so the dashboard always calls this directly
+// right after writing decline_reason/decline_notify onto the order.
 //
-// Deploy with: supabase functions deploy resend-invoice
+// Deploy with: supabase functions deploy send-decline-email
 // (Reuses the TRIGGER_SECRET_KEY secret already set for invoice-webhook —
 // secrets are shared across all Edge Functions in a Supabase project.
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected by the runtime,
 // no need to set them manually.)
 
-const TRIGGER_TASK_URL = "https://api.trigger.dev/api/v1/tasks/generate-invoice-and-send/trigger";
+const TRIGGER_TASK_URL = "https://api.trigger.dev/api/v1/tasks/send-decline-email/trigger";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,13 +39,9 @@ function jwtRole(token: string): string | null {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
-  // Edge Function's default JWT verification already confirms the token is a
-  // valid Supabase-issued JWT; this additionally restricts it to logged-in
-  // dashboard users (role "authenticated"), not just anyone holding the
-  // public anon key.
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (jwtRole(token) !== "authenticated") {
-    return json({ error: "Alleen ingelogde gebruikers kunnen een factuur opnieuw versturen." }, 403);
+    return json({ error: "Alleen ingelogde gebruikers kunnen een weigeringsmail versturen." }, 403);
   }
 
   const { orderId } = await req.json();
@@ -69,8 +61,11 @@ Deno.serve(async (req: Request) => {
   });
   const [order] = await orderRes.json();
   if (!order) return json({ error: "Bestelling niet gevonden." }, 404);
-  if (order.status !== "accepted") {
-    return json({ error: `Bestelling heeft status "${order.status}", niet "accepted".` }, 400);
+  if (order.status !== "declined") {
+    return json({ error: `Bestelling heeft status "${order.status}", niet "declined".` }, 400);
+  }
+  if (!order.decline_notify || !order.decline_reason) {
+    return json({ error: "Deze bestelling heeft geen reden om te mailen." }, 400);
   }
 
   const response = await fetch(TRIGGER_TASK_URL, {
@@ -79,15 +74,7 @@ Deno.serve(async (req: Request) => {
       "Content-Type": "application/json",
       Authorization: `Bearer ${triggerSecretKey}`,
     },
-    body: JSON.stringify({
-      payload: {
-        type: "MANUAL_RESEND",
-        table: "orders",
-        schema: "public",
-        record: order,
-        forceResend: true,
-      },
-    }),
+    body: JSON.stringify({ payload: { orderId } }),
   });
 
   if (!response.ok) {

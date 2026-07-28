@@ -1,5 +1,5 @@
 import { supabase } from "./client";
-import type { Order, OrderEditableFields, OrderInput, OrderStatus } from "./types";
+import type { Order, OrderDeclineFields, OrderEditableFields, OrderInput, OrderStatus } from "./types";
 
 const ORDER_SELECT = "*";
 
@@ -55,11 +55,40 @@ export async function setOrderStatus(id: string, status: OrderStatus): Promise<O
   return normalize(data as Order);
 }
 
+/**
+ * Pending → declined, or accepted → declined. Always carries a reason (or an
+ * explicit "no reason needed" skip) — declining silently isn't allowed from
+ * this layer up, only `setOrderStatus` can still do a bare status flip and
+ * that's reserved for other transitions (e.g. archive).
+ */
+export async function declineOrder(id: string, fields: OrderDeclineFields): Promise<Order> {
+  const { data, error } = await supabase
+    .from("orders")
+    .update({
+      status: "declined",
+      decline_reason: fields.notify ? fields.reason : null,
+      decline_notify: fields.notify,
+      decline_email_status: fields.notify ? "pending" : null,
+    })
+    .eq("id", id)
+    .select(ORDER_SELECT)
+    .single();
+  if (error) throw error;
+  return normalize(data as Order);
+}
+
 /** The only path into 'accepted' — always carries a price, whether from pending or restored from declined. */
 export async function acceptOrder(id: string, price: number): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
-    .update({ status: "accepted", price })
+    .update({
+      status: "accepted",
+      price,
+      // A restored order starts its next possible decline cycle clean.
+      decline_reason: null,
+      decline_notify: true,
+      decline_email_status: null,
+    })
     .eq("id", id)
     .select(ORDER_SELECT)
     .single();
@@ -103,6 +132,13 @@ export async function setOrderExcludedFromBookkeeping(id: string, excluded: bool
     .single();
   if (error) throw error;
   return normalize(data as Order);
+}
+
+/** Sends the decline-reason email for an already-declined order (decline_notify must be true). */
+export async function sendDeclineEmail(orderId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("send-decline-email", { body: { orderId } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
 }
 
 /** Permanently deletes an order (and its reference photo, if any). Meant for declined or archived orders. */

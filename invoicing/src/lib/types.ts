@@ -14,8 +14,22 @@ export type OrderRow = {
   reference_photo_url: string | null;
   price: number | null;
   notes: string | null;
+  decline_reason: string | null;
+  decline_notify: boolean;
+  decline_email_status: "pending" | "sent" | "failed" | null;
   created_at: string;
   updated_at: string;
+};
+
+/** The order fields an invoice PDF is actually rendered from — snapshotted onto InvoiceRow.snapshot. */
+export type InvoiceSnapshot = {
+  price: number | null;
+  customer_name: string;
+  customer_email: string;
+  occasion: string;
+  servings: number;
+  flavor: string;
+  pickup_date: string;
 };
 
 /**
@@ -41,8 +55,11 @@ export type InvoiceRow = {
   invoice_number: string | null;
   pdf_storage_path: string | null;
   payment_reference: string | null;
-  status: "pending" | "sent" | "failed";
+  status: "pending" | "sent" | "failed" | "superseded";
   paid: boolean;
+  replaces_invoice_id: string | null;
+  superseded_at: string | null;
+  snapshot: InvoiceSnapshot;
   created_at: string;
   updated_at: string;
 };

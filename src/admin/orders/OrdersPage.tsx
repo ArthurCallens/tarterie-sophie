@@ -7,11 +7,13 @@ export function OrdersPage() {
     accepted,
     declined,
     invoicesByOrderId,
+    invoiceHistoryByOrderId,
+    staleOrderIds,
     loading,
     error,
     accept,
     restore,
-    decline,
+    declineWithReason,
     archive,
     saveDetails,
     saveFields,
@@ -38,7 +40,7 @@ export function OrdersPage() {
                   key={order.id}
                   order={order}
                   onAccept={accept}
-                  onDecline={decline}
+                  onDecline={declineWithReason}
                   onSaveFields={saveFields}
                 />
               ))}
@@ -54,10 +56,12 @@ export function OrdersPage() {
                   key={order.id}
                   order={order}
                   invoice={invoicesByOrderId.get(order.id)}
+                  invoiceHistory={invoiceHistoryByOrderId.get(order.id)}
+                  isInvoiceStale={staleOrderIds.has(order.id)}
                   onSaveDetails={saveDetails}
                   onSaveFields={saveFields}
                   onArchive={archive}
-                  onDecline={decline}
+                  onDecline={declineWithReason}
                   onTogglePaid={togglePaid}
                   onResendInvoice={resendOrderInvoice}
                 />

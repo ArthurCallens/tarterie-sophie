@@ -31,10 +31,22 @@ export const sendInvoiceEmail = task({
     if (downloadError) throw new Error(`Kon factuur-PDF niet downloaden: ${downloadError.message}`);
     const pdfBuffer = Buffer.from(await pdfBlob.arrayBuffer());
 
+    let previousInvoiceNumber: string | null = null;
+    if (invoice.replaces_invoice_id) {
+      const { data: previousInvoice } = await supabaseAdmin
+        .from("invoices")
+        .select("invoice_number")
+        .eq("id", invoice.replaces_invoice_id)
+        .maybeSingle();
+      previousInvoiceNumber = previousInvoice?.invoice_number ?? null;
+    }
+
     const body = [
       `Beste ${order.customer_name},`,
       "",
-      `Bedankt voor je bestelling bij ${BUSINESS.name}! In bijlage vind je de factuur (${invoice.invoice_number}) voor je bestelling.`,
+      previousInvoiceNumber
+        ? `In bijlage vind je een herziene factuur (${invoice.invoice_number}) voor je bestelling bij ${BUSINESS.name}. Deze factuur vervangt de eerder verstuurde factuur ${previousInvoiceNumber}, die niet langer geldig is.`
+        : `Bedankt voor je bestelling bij ${BUSINESS.name}! In bijlage vind je de factuur (${invoice.invoice_number}) voor je bestelling.`,
       "",
       `Je kan betalen via overschrijving (zie factuur voor IBAN en QR-code) of contant bij afhaling op ${order.pickup_date}.`,
       "",
@@ -44,7 +56,9 @@ export const sendInvoiceEmail = task({
 
     await sendOutlookWithAttachment({
       to: order.customer_email,
-      subject: `Factuur ${invoice.invoice_number} — ${BUSINESS.name}`,
+      subject: previousInvoiceNumber
+        ? `Herziene factuur ${invoice.invoice_number} (vervangt ${previousInvoiceNumber}) — ${BUSINESS.name}`
+        : `Factuur ${invoice.invoice_number} — ${BUSINESS.name}`,
       body,
       pdfBuffer,
       filename: `${invoice.invoice_number}.pdf`,

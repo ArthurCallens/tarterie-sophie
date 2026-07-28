@@ -205,7 +205,15 @@ export type Order = {
   original_allergens: string[];
   original_pickup_date: string;
   original_message: string | null;
+  // Set when this order is declined — the reason Sophie wrote (mailed to the
+  // client) and whether/how that mail went out. Reset back to defaults
+  // whenever the order is restored to accepted.
+  decline_reason: string | null;
+  decline_notify: boolean;
+  decline_email_status: DeclineEmailStatus | null;
 };
+
+export type DeclineEmailStatus = "pending" | "sent" | "failed";
 
 export type OrderInput = {
   customer_name: string;
@@ -220,7 +228,18 @@ export type OrderInput = {
   reference_photo_url: string | null;
 };
 
-export type InvoiceStatus = "pending" | "sent" | "failed";
+export type InvoiceStatus = "pending" | "sent" | "failed" | "superseded";
+
+/** The order fields an invoice PDF was actually rendered from, at generation time. */
+export type InvoiceSnapshot = {
+  price: number | null;
+  customer_name: string;
+  customer_email: string;
+  occasion: string;
+  servings: number;
+  flavor: string;
+  pickup_date: string;
+};
 
 /** Mirrors the `invoices` table (managed mostly by the tarterie-invoicing trigger.dev project). */
 export type Invoice = {
@@ -231,6 +250,12 @@ export type Invoice = {
   payment_reference: string | null;
   status: InvoiceStatus;
   paid: boolean;
+  // Non-null once an invoice is superseded by a newer one (price/details
+  // changed after this invoice was sent) — the old PDF stays in Storage for
+  // the audit trail but is no longer the order's active invoice.
+  replaces_invoice_id: string | null;
+  superseded_at: string | null;
+  snapshot: InvoiceSnapshot;
   created_at: string;
   updated_at: string;
 };
@@ -307,4 +332,10 @@ export type OrderEditableFields = {
   allergens: string[];
   pickup_date: string;
   message: string | null;
+};
+
+/** What Sophie writes (or explicitly skips) when declining an order. */
+export type OrderDeclineFields = {
+  reason: string | null;
+  notify: boolean;
 };
