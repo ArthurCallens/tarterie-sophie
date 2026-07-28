@@ -2,7 +2,7 @@ import { OrderCard } from "../orders/OrderCard";
 import { useOrders } from "../orders/useOrders";
 
 export function ArchivePage() {
-  const { archived, invoicesByOrderId, loading, error } = useOrders();
+  const { archived, invoicesByOrderId, loading, error, remove } = useOrders();
 
   return (
     <div>
@@ -13,10 +13,10 @@ export function ArchivePage() {
       {loading && <p className="mt-6 text-sm text-cacao-soft">Bezig met laden…</p>}
 
       {!loading && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid items-start gap-4 sm:grid-cols-3">
           {archived.length === 0 && <p className="text-sm text-cacao-soft">Nog geen gearchiveerde bestellingen.</p>}
           {archived.map((order) => (
-            <OrderCard key={order.id} order={order} invoice={invoicesByOrderId.get(order.id)} />
+            <OrderCard key={order.id} order={order} invoice={invoicesByOrderId.get(order.id)} onDelete={remove} />
           ))}
         </div>
       )}

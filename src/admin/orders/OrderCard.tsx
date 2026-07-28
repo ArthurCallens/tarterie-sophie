@@ -337,7 +337,7 @@ export function OrderCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <p className="whitespace-nowrap text-xs text-cacao-soft">{order.pickup_date}</p>
-          {!readOnly && order.status === "declined" && onDelete && (
+          {!readOnly && (order.status === "declined" || order.status === "archived") && onDelete && (
             <button
               type="button"
               onClick={(e) => {

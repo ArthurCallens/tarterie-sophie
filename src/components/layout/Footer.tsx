@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { NAV_LINKS, SITE } from "../../lib/data";
+import { useContactContent } from "../../lib/useContactContent";
 
 export function Footer() {
+  const contact = useContactContent();
+
   return (
     <footer className="relative mt-24 bg-cacao text-cream">
       <svg
@@ -18,28 +21,30 @@ export function Footer() {
         <div>
           <p className="font-display text-2xl font-semibold">{SITE.name}</p>
           <p className="mt-1 font-script text-xl text-rose">{SITE.tagline}</p>
-          <div className="mt-5 flex gap-3">
-            <motion.a
-              href={SITE.instagram}
-              target="_blank"
-              rel="noreferrer"
-              whileHover={{ scale: 1.08, rotate: -3 }}
-              whileTap={{ scale: 0.95 }}
-              className="rounded-full border border-cream/30 px-4 py-1.5 text-sm transition-colors hover:bg-cream hover:text-cacao"
-            >
-              Instagram
-            </motion.a>
-            <motion.a
-              href={SITE.facebook}
-              target="_blank"
-              rel="noreferrer"
-              whileHover={{ scale: 1.08, rotate: 3 }}
-              whileTap={{ scale: 0.95 }}
-              className="rounded-full border border-cream/30 px-4 py-1.5 text-sm transition-colors hover:bg-cream hover:text-cacao"
-            >
-              Facebook
-            </motion.a>
-          </div>
+          {contact && (
+            <div className="mt-5 flex gap-3">
+              <motion.a
+                href={contact.instagramUrl}
+                target="_blank"
+                rel="noreferrer"
+                whileHover={{ scale: 1.08, rotate: -3 }}
+                whileTap={{ scale: 0.95 }}
+                className="rounded-full border border-cream/30 px-4 py-1.5 text-sm transition-colors hover:bg-cream hover:text-cacao"
+              >
+                Instagram
+              </motion.a>
+              <motion.a
+                href={contact.facebookUrl}
+                target="_blank"
+                rel="noreferrer"
+                whileHover={{ scale: 1.08, rotate: 3 }}
+                whileTap={{ scale: 0.95 }}
+                className="rounded-full border border-cream/30 px-4 py-1.5 text-sm transition-colors hover:bg-cream hover:text-cacao"
+              >
+                Facebook
+              </motion.a>
+            </div>
+          )}
         </div>
 
         <div>
@@ -55,22 +60,26 @@ export function Footer() {
           </ul>
         </div>
 
-        <div>
-          <p className="font-stamp text-xs uppercase tracking-widest text-cream/60">Contact</p>
-          <ul className="mt-3 space-y-2 text-cream/85">
-            <li>{SITE.address.full}</li>
-            <li>
-              <a href={`tel:${SITE.phoneHref}`} className="hover:text-rose">
-                {SITE.phone}
-              </a>
-            </li>
-            <li>
-              <a href={`mailto:${SITE.email}`} className="hover:text-rose">
-                {SITE.email}
-              </a>
-            </li>
-          </ul>
-        </div>
+        {contact && (
+          <div>
+            <p className="font-stamp text-xs uppercase tracking-widest text-cream/60">Contact</p>
+            <ul className="mt-3 space-y-2 text-cream/85">
+              <li>
+                {contact.addressStreet}, {contact.addressCity}
+              </li>
+              <li>
+                <a href={`tel:${contact.phoneHref}`} className="hover:text-rose">
+                  {contact.phone}
+                </a>
+              </li>
+              <li>
+                <a href={`mailto:${contact.email}`} className="hover:text-rose">
+                  {contact.email}
+                </a>
+              </li>
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-cream/10 px-5 py-5 text-center text-xs text-cream/50 sm:px-8">

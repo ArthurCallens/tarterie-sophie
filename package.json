@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "migrate:products": "node --env-file=.env.local scripts/migrate-products.mjs"
+    "migrate:products": "node --env-file=.env.local scripts/migrate-products.mjs",
+    "migrate:site-content": "node --env-file=.env.local scripts/migrate-site-content.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",

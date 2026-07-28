@@ -79,6 +79,11 @@ export async function setProductActive(id: string, active: boolean): Promise<voi
   if (error) throw error;
 }
 
+export async function setProductFeatured(id: string, featured: boolean): Promise<void> {
+  const { error } = await supabase.from("products").update({ featured }).eq("id", id);
+  if (error) throw error;
+}
+
 /** Deletes the product's Storage files, then the row (product_images cascades). */
 export async function deleteProduct(id: string, images: ProductImage[]): Promise<void> {
   const paths = images.map((img) => storagePathFromUrl(img.image_url)).filter((p): p is string => Boolean(p));

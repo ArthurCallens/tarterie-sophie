@@ -2,19 +2,24 @@ import { useEffect, useState } from "react";
 import { Reveal, Stagger } from "../components/motion/Reveal";
 import { CupcakeSwing } from "../components/motion/CupcakeSwing";
 import { FloatingTreat } from "../components/motion/FloatingTreat";
+import { Button } from "../components/ui/Button";
 import { CakeCard } from "../components/ui/CakeCard";
 import { Divider, PageBanner } from "../components/ui/Divider";
 import { OrderTicketForm } from "../components/ui/OrderTicketForm";
-import { ALLERGENS, ORDER_STEPS } from "../lib/data";
+import { ALLERGENS } from "../lib/data";
 import { formatPriceEUR } from "../lib/supabase/format";
 import { getCustomCakeOffer } from "../lib/supabase/customCake";
+import { getAllOrderSteps } from "../lib/supabase/orderSteps";
+import { getPageContent } from "../lib/supabase/pageContent";
 import { getProductsByCategory } from "../lib/supabase/products";
-import type { CustomCakeOffer, Product } from "../lib/supabase/types";
+import type { BestellenContent, CustomCakeOffer, OrderStep, Product } from "../lib/supabase/types";
 
 export function Bestellen() {
   const [classics, setClassics] = useState<Product[]>([]);
   const [smallPastries, setSmallPastries] = useState<Product[]>([]);
   const [customCake, setCustomCake] = useState<CustomCakeOffer | null>(null);
+  const [content, setContent] = useState<BestellenContent | null>(null);
+  const [steps, setSteps] = useState<OrderStep[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,11 +27,15 @@ export function Bestellen() {
       getProductsByCategory("klassieker"),
       getProductsByCategory("klein-gebak"),
       getCustomCakeOffer(),
-    ]).then(([classicsData, smallPastriesData, customCakeData]) => {
+      getPageContent<BestellenContent>("bestellen"),
+      getAllOrderSteps(),
+    ]).then(([classicsData, smallPastriesData, customCakeData, bestellenContent, orderSteps]) => {
       if (cancelled) return;
       setClassics(classicsData);
       setSmallPastries(smallPastriesData);
       setCustomCake(customCakeData);
+      setContent(bestellenContent);
+      setSteps(orderSteps);
     });
     return () => {
       cancelled = true;
@@ -38,20 +47,24 @@ export function Bestellen() {
   return (
     <>
       <PageBanner
-        eyebrow="Zo werkt het"
-        title="Een taart bestellen?"
-        intro="Van eerste berichtje tot afhaalmoment — hier lees je hoe een bestelling bij Tarterie Sophie verloopt."
+        eyebrow={content?.bannerEyebrow ?? ""}
+        title={content?.bannerTitle ?? ""}
+        intro={content?.bannerIntro}
       />
+
+      <div className="-mt-4 flex justify-center pb-4">
+        <Button href="#bestelformulier">Bestel meteen je taart</Button>
+      </div>
 
       {/* Steps */}
       <section className="mx-auto max-w-5xl px-5 pb-20 sm:px-8">
         <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {ORDER_STEPS.map((step, i) => (
-            <Reveal key={step.title} delay={i * 0.06}>
-              <div className="h-full rounded-2xl bg-cream-dark p-6 shadow-[var(--shadow-card)]">
+          {steps.map((step, i) => (
+            <Reveal key={step.id} delay={i * 0.06}>
+              <div className="h-full rounded-2xl border border-cacao/10 p-6">
                 <span className="font-script text-3xl text-cherry">{i + 1}</span>
                 <h3 className="mt-2 font-display text-lg text-cacao">{step.title}</h3>
-                <p className="mt-2 text-sm text-cacao-soft">{step.text}</p>
+                <p className="mt-2 text-sm text-cacao-soft">{step.body}</p>
               </div>
             </Reveal>
           ))}
@@ -147,15 +160,15 @@ export function Bestellen() {
             </Reveal>
 
             <Reveal delay={0.1}>
-              <div className="rounded-3xl bg-cream-dark p-8 shadow-[var(--shadow-card)]">
+              <div className="rounded-3xl border border-cacao/10 p-8">
                 <p className="font-display text-2xl text-cherry">
                   {formatPriceEUR(customCake.price)} {customCake.price_unit}
                 </p>
                 <p className="mt-3 text-cacao-soft">{customCake.detail}</p>
                 <p className="mt-5 font-semibold text-cacao">Mogelijke vullingen zijn:</p>
-                <ul className="mt-3 grid max-h-72 grid-cols-1 gap-x-4 gap-y-2 overflow-y-auto text-sm text-cacao-soft sm:grid-cols-2">
+                <ul className="mt-3 max-h-72 columns-1 gap-x-4 overflow-y-auto text-sm text-cacao-soft sm:columns-2">
                   {customCake.fillings.map((filling) => (
-                    <li key={filling} className="flex gap-2">
+                    <li key={filling} className="mb-2 flex gap-2 break-inside-avoid">
                       <span className="shrink-0 text-cherry">•</span>
                       {filling}
                     </li>
@@ -182,7 +195,7 @@ export function Bestellen() {
       </section>
 
       {/* Order form */}
-      <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
+      <section id="bestelformulier" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-20 sm:px-8">
         <Reveal>
           <OrderTicketForm products={allProducts} />
         </Reveal>

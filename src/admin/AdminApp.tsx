@@ -12,6 +12,13 @@ import { AccountPage } from "./account/AccountPage";
 import { OrdersPage } from "./orders/OrdersPage";
 import { CalendarPage } from "./calendar/CalendarPage";
 import { ArchivePage } from "./archive/ArchivePage";
+import { BookkeepingPage } from "./bookkeeping/BookkeepingPage";
+import { SiteHomePage } from "./site/SiteHomePage";
+import { SiteAboutPage } from "./site/SiteAboutPage";
+import { SiteBestellenPage } from "./site/SiteBestellenPage";
+import { SiteContactPage } from "./site/SiteContactPage";
+import { WorkshopsAdminPage } from "./site/WorkshopsAdminPage";
+import { WorkshopForm } from "./site/WorkshopForm";
 
 export function AdminApp() {
   return (
@@ -34,6 +41,14 @@ export function AdminApp() {
                   <Route path="products/new" element={<ProductForm />} />
                   <Route path="products/:id/edit" element={<ProductForm />} />
                   <Route path="custom-cake" element={<CustomCakePage />} />
+                  <Route path="bookkeeping" element={<BookkeepingPage />} />
+                  <Route path="site/home" element={<SiteHomePage />} />
+                  <Route path="site/about" element={<SiteAboutPage />} />
+                  <Route path="site/bestellen" element={<SiteBestellenPage />} />
+                  <Route path="site/workshops" element={<WorkshopsAdminPage />} />
+                  <Route path="site/workshops/new" element={<WorkshopForm />} />
+                  <Route path="site/workshops/:id/edit" element={<WorkshopForm />} />
+                  <Route path="site/contact" element={<SiteContactPage />} />
                   <Route path="account" element={<AccountPage />} />
                 </Routes>
               </AdminLayout>

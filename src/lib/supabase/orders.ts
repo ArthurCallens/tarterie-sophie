@@ -93,7 +93,19 @@ export async function updateOrderDetails(
   return normalize(data as Order);
 }
 
-/** Permanently deletes an order (and its reference photo, if any). Only meant for declined orders. */
+/** Removes/restores an order's income row from the Boekkeeping ledger, without touching the order itself. */
+export async function setOrderExcludedFromBookkeeping(id: string, excluded: boolean): Promise<Order> {
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ excluded_from_bookkeeping: excluded })
+    .eq("id", id)
+    .select(ORDER_SELECT)
+    .single();
+  if (error) throw error;
+  return normalize(data as Order);
+}
+
+/** Permanently deletes an order (and its reference photo, if any). Meant for declined or archived orders. */
 export async function deleteOrder(id: string, referencePhotoUrl: string | null): Promise<void> {
   if (referencePhotoUrl) {
     const path = referencePhotoStoragePath(referencePhotoUrl);

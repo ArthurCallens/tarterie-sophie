@@ -21,7 +21,7 @@ export function ResetPassword() {
     const { error } = await updatePassword(password);
     setSubmitting(false);
     if (error) setError(error);
-    else navigate("/admin/products", { replace: true });
+    else navigate("/admin/orders", { replace: true });
   }
 
   return (

@@ -17,7 +17,7 @@ export function ContactForm() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        className="relative overflow-hidden rounded-3xl bg-cream-dark p-8 text-center shadow-[var(--shadow-card)]"
+        className="relative overflow-hidden rounded-3xl p-8 text-center"
       >
         <SuccessBurst />
         <motion.p
@@ -44,7 +44,7 @@ export function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-3xl bg-cream-dark p-8 shadow-[var(--shadow-card)] sm:p-10">
+    <form onSubmit={handleSubmit} className="rounded-3xl border border-cacao/10 p-8 sm:p-10">
       <h3 className="font-display text-2xl text-cacao">Stuur een berichtje</h3>
       <div className="mt-6 grid gap-5">
         <label className="flex flex-col gap-2 text-sm font-medium text-cacao">

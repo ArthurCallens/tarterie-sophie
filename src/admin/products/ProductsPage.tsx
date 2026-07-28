@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { formatPriceEUR } from "../../lib/supabase/format";
-import { useProducts } from "./useProducts";
+import { MAX_FEATURED_PRODUCTS, useProducts } from "./useProducts";
 
 const CATEGORY_LABEL: Record<string, string> = {
   klassieker: "Klassieker",
@@ -8,7 +8,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export function ProductsPage() {
-  const { products, loading, error, toggleActive, remove } = useProducts();
+  const { products, loading, error, toggleActive, toggleFeatured, featuredError, remove } = useProducts();
+  const featuredCount = products.filter((p) => p.featured).length;
 
   async function handleDelete(product: (typeof products)[number]) {
     if (!window.confirm(`"${product.name}" definitief verwijderen? Dit kan niet ongedaan gemaakt worden.`)) return;
@@ -27,7 +28,13 @@ export function ProductsPage() {
         </Link>
       </div>
 
+      <p className="mt-2 text-sm text-cacao-soft">
+        "Uitgelicht" bepaalt welke producten in "Enkele favorieten" op de homepage staan — maximaal{" "}
+        {MAX_FEATURED_PRODUCTS} ({featuredCount}/{MAX_FEATURED_PRODUCTS} gekozen).
+      </p>
+
       {error && <p className="mt-4 text-sm text-cherry">{error}</p>}
+      {featuredError && <p className="mt-4 text-sm text-cherry">{featuredError}</p>}
       {loading && <p className="mt-6 text-sm text-cacao-soft">Bezig met laden…</p>}
 
       {!loading && products.length === 0 && (
@@ -45,6 +52,7 @@ export function ProductsPage() {
                 <th className="px-4 py-3 font-medium">Prijs</th>
                 <th className="px-4 py-3 font-medium">Voorraad</th>
                 <th className="px-4 py-3 font-medium">Actief</th>
+                <th className="px-4 py-3 font-medium">Uitgelicht</th>
                 <th className="px-4 py-3 font-medium">Acties</th>
               </tr>
             </thead>
@@ -79,6 +87,26 @@ export function ProductsPage() {
                       }`}
                     >
                       {product.active ? "Actief" : "Inactief"}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => void toggleFeatured(product)}
+                      title={
+                        !product.featured && featuredCount >= MAX_FEATURED_PRODUCTS
+                          ? `Er zijn al ${MAX_FEATURED_PRODUCTS} producten uitgelicht — klik om te proberen wisselen`
+                          : undefined
+                      }
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        product.featured
+                          ? "bg-cherry/15 text-cherry"
+                          : !product.featured && featuredCount >= MAX_FEATURED_PRODUCTS
+                            ? "bg-cacao/10 text-cacao-soft/50"
+                            : "bg-cacao/10 text-cacao-soft"
+                      }`}
+                    >
+                      {product.featured ? "Uitgelicht" : "—"}
                     </button>
                   </td>
                   <td className="px-4 py-3">

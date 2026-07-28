@@ -60,7 +60,7 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        className="relative overflow-hidden rounded-3xl bg-cream-dark p-10 text-center shadow-[var(--shadow-card)]"
+        className="relative overflow-hidden rounded-3xl p-10 text-center"
       >
         <SuccessBurst />
         <motion.p
@@ -89,18 +89,8 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative rounded-[1.75rem] bg-cream-dark p-6 shadow-[var(--shadow-card)] sm:p-10"
+      className="relative rounded-[1.75rem] border border-cacao/10 p-6 sm:p-10"
     >
-      {/* perforated ticket edge */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-6 top-0 flex -translate-y-1/2 justify-between sm:inset-x-10"
-      >
-        {Array.from({ length: 14 }).map((_, i) => (
-          <span key={i} className="h-3 w-3 rounded-full bg-cream" />
-        ))}
-      </div>
-
       <p className="font-stamp text-xs uppercase tracking-[0.2em] text-cherry">Bestelbon</p>
       <h3 className="mt-2 font-display text-2xl text-cacao">Vertel me over je feestje</h3>
 

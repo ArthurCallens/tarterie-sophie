@@ -5,6 +5,7 @@ import {
   addProductImage,
   createProduct,
   deleteProductImage,
+  getAllProductsAdmin,
   getProductById,
   reorderProductImages,
   updateProduct,
@@ -12,6 +13,7 @@ import {
 } from "../../lib/supabase/products";
 import type { Product, ProductCategory, ProductImage, ProductInput } from "../../lib/supabase/types";
 import { ImageManager, type ManagedImage } from "../components/ImageManager";
+import { MAX_FEATURED_PRODUCTS } from "./useProducts";
 
 const EMPTY_INPUT: ProductInput = {
   name: "",
@@ -35,6 +37,7 @@ export function ProductForm() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otherFeaturedCount, setOtherFeaturedCount] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -57,6 +60,14 @@ export function ProductForm() {
     });
   }, [id]);
 
+  useEffect(() => {
+    getAllProductsAdmin().then((all) => {
+      setOtherFeaturedCount(all.filter((p) => p.featured && p.id !== id).length);
+    });
+  }, [id]);
+
+  const featuredLimitReached = !input.featured && otherFeaturedCount >= MAX_FEATURED_PRODUCTS;
+
   function toggleAllergen(allergenId: string) {
     setInput((prev) => ({
       ...prev,
@@ -73,7 +84,7 @@ export function ProductForm() {
     try {
       if (isEditing && id) {
         await updateProduct(id, input);
-        navigate("/admin/products");
+        navigate("/admin/site/bestellen");
       } else {
         const created = await createProduct(input);
         navigate(`/admin/products/${created.id}/edit`);
@@ -199,15 +210,24 @@ export function ProductForm() {
             />
             Actief (zichtbaar op de website)
           </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-cacao">
+          <label
+            className={`flex items-center gap-2 text-sm font-medium text-cacao ${featuredLimitReached ? "opacity-40" : ""}`}
+            title={featuredLimitReached ? `Maximaal ${MAX_FEATURED_PRODUCTS} producten kunnen uitgelicht zijn.` : undefined}
+          >
             <input
               type="checkbox"
+              disabled={featuredLimitReached}
               checked={input.featured}
               onChange={(e) => setInput({ ...input, featured: e.target.checked })}
             />
             Uitgelicht op homepage
           </label>
         </div>
+        {featuredLimitReached && (
+          <p className="text-xs text-cherry">
+            Er zijn al {MAX_FEATURED_PRODUCTS} producten uitgelicht — haal er eerst één weg op de productenlijst.
+          </p>
+        )}
 
         {error && <p className="text-sm text-cherry">{error}</p>}
 

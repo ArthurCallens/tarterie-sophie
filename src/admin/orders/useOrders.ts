@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { snapshotOrderIncomeEntry } from "../../lib/supabase/bookkeeping";
 import { getAllInvoices, resendInvoice, setInvoicePaid } from "../../lib/supabase/invoices";
 import {
   acceptOrder,
@@ -76,8 +77,20 @@ export function useOrders() {
     await refresh();
   }
 
-  /** Permanently deletes a declined order. */
+  /**
+   * Permanently deletes a declined or archived order. If it had counted as
+   * income (accepted/archived, priced, not already excluded from the ledger),
+   * that income is snapshotted into Boekhouding first — deleting the order
+   * must never silently erase money already recorded as earned.
+   */
   async function remove(order: Order) {
+    const countedAsIncome =
+      (order.status === "accepted" || order.status === "archived") &&
+      order.price !== null &&
+      !order.excluded_from_bookkeeping;
+    if (countedAsIncome) {
+      await snapshotOrderIncomeEntry(order, invoicesByOrderId.get(order.id) ?? null);
+    }
     await deleteOrder(order.id, order.reference_photo_url);
     await refresh();
   }

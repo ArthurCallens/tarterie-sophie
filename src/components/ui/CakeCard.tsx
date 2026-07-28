@@ -4,7 +4,7 @@ import { KraftTag } from "./KraftTag";
 type CakeCardProps = {
   name: string;
   note?: string;
-  price: string;
+  price?: string;
   image: string;
   alt: string;
   rotate?: number;
@@ -19,9 +19,11 @@ export function CakeCard({ name, note, price, image, alt, rotate = 0, allergens 
       whileHover={{ rotate: 0, scale: 1.03, y: -6 }}
       transition={{ type: "spring", stiffness: 260, damping: 18 }}
     >
-      <div className="absolute -right-3 top-0 z-10">
-        <KraftTag price={price} rotate={rotate < 0 ? 8 : -8} />
-      </div>
+      {price && (
+        <div className="absolute -right-3 top-0 z-10">
+          <KraftTag price={price} rotate={rotate < 0 ? 8 : -8} />
+        </div>
+      )}
       <div className="overflow-hidden rounded-3xl bg-cream-dark shadow-[var(--shadow-card)] ring-1 ring-cacao/5">
         <div className="relative aspect-[4/5] overflow-hidden">
           <img
