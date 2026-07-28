@@ -2,32 +2,13 @@ import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { Button } from "./Button";
 import { SuccessBurst } from "../motion/SuccessBurst";
-import { JOTFORM_FIELDS, submitToJotform } from "../../lib/jotform";
 
 export function WorkshopSignupForm({ workshopName }: { workshopName: string }) {
   const [sent, setSent] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    const form = new FormData(event.currentTarget);
-
-    try {
-      await submitToJotform({
-        [JOTFORM_FIELDS.naam]: String(form.get("name") || ""),
-        [JOTFORM_FIELDS.email]: String(form.get("email") || ""),
-        [JOTFORM_FIELDS.formulier]: `Workshop: ${workshopName}`,
-        [JOTFORM_FIELDS.opmerking]: `Inschrijving voor de workshop "${workshopName}".`,
-      });
-    } catch (error) {
-      console.error("Kon inschrijving niet versturen naar Jotform:", error);
-    } finally {
-      setIsSubmitting(false);
-      setSent(true);
-    }
+    setSent(true);
   }
 
   if (sent) {
@@ -85,9 +66,7 @@ export function WorkshopSignupForm({ workshopName }: { workshopName: string }) {
         </label>
       </div>
       <div className="mt-1">
-        <Button type="submit" className={isSubmitting ? "pointer-events-none opacity-60" : undefined}>
-          {isSubmitting ? "Bezig met verzenden…" : "Reserveer mijn plekje"}
-        </Button>
+        <Button type="submit">Reserveer mijn plekje</Button>
       </div>
     </form>
   );

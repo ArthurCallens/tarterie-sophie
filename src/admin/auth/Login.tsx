@@ -11,7 +11,7 @@ export function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (session) {
-    const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/admin/products";
+    const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/admin/orders";
     return <Navigate to={from} replace />;
   }
 

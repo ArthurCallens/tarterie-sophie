@@ -2,32 +2,13 @@ import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { Button } from "./Button";
 import { SuccessBurst } from "../motion/SuccessBurst";
-import { JOTFORM_FIELDS, submitToJotform } from "../../lib/jotform";
 
 export function ContactForm() {
   const [sent, setSent] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    const form = new FormData(event.currentTarget);
-
-    try {
-      await submitToJotform({
-        [JOTFORM_FIELDS.naam]: String(form.get("name") || ""),
-        [JOTFORM_FIELDS.email]: String(form.get("email") || ""),
-        [JOTFORM_FIELDS.formulier]: "Contact",
-        [JOTFORM_FIELDS.opmerking]: String(form.get("message") || ""),
-      });
-    } catch (error) {
-      console.error("Kon bericht niet versturen naar Jotform:", error);
-    } finally {
-      setIsSubmitting(false);
-      setSent(true);
-    }
+    setSent(true);
   }
 
   if (sent) {
@@ -96,9 +77,7 @@ export function ContactForm() {
         </label>
       </div>
       <div className="mt-6">
-        <Button type="submit" className={isSubmitting ? "pointer-events-none opacity-60" : undefined}>
-          {isSubmitting ? "Bezig met verzenden…" : "Verstuur bericht"}
-        </Button>
+        <Button type="submit">Verstuur bericht</Button>
       </div>
     </form>
   );

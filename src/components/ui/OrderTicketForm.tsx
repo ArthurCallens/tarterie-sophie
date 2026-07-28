@@ -4,7 +4,7 @@ import { ALLERGENS } from "../../lib/data";
 import type { Product } from "../../lib/supabase/types";
 import { Button } from "./Button";
 import { SuccessBurst } from "../motion/SuccessBurst";
-import { JOTFORM_FIELDS, submitToJotform } from "../../lib/jotform";
+import { submitOrder, uploadOrderReferencePhoto } from "../../lib/supabase/orders";
 
 type OrderTicketFormProps = {
   products: Product[];
@@ -14,6 +14,7 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
   const CAKE_OPTIONS = products.map((p) => p.name);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [allergenChoices, setAllergenChoices] = useState<string[]>([]);
 
   function toggleAllergen(id: string) {
@@ -24,33 +25,32 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
     event.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     const form = new FormData(event.currentTarget);
     const photo = form.get("referencePhoto") as File | null;
 
-    const details = [
-      `Gelegenheid: ${form.get("occasion") || "-"}`,
-      `Aantal personen: ${form.get("servings") || "-"}`,
-      `Gewenste taart: ${form.get("flavor") || "-"}`,
-      `Allergenen: ${allergenChoices.join(", ") || "geen opgegeven"}`,
-      `Gewenste afhaaldatum: ${form.get("pickupDate") || "-"}`,
-      `Inspiratiefoto: ${photo?.name ? `"${photo.name}" — stuurt de klant apart per e-mail door` : "geen"}`,
-      "",
-      `Bericht: ${form.get("message") || "-"}`,
-    ].join("\n");
-
     try {
-      await submitToJotform({
-        [JOTFORM_FIELDS.naam]: String(form.get("name") || ""),
-        [JOTFORM_FIELDS.email]: String(form.get("email") || ""),
-        [JOTFORM_FIELDS.formulier]: "Bestelling",
-        [JOTFORM_FIELDS.opmerking]: details,
+      const referencePhotoUrl = photo && photo.size > 0 ? await uploadOrderReferencePhoto(photo) : null;
+
+      await submitOrder({
+        customer_name: String(form.get("name") || ""),
+        customer_email: String(form.get("email") || ""),
+        customer_phone: String(form.get("phone") || ""),
+        occasion: String(form.get("occasion") || ""),
+        servings: Number(form.get("servings") || 0),
+        flavor: String(form.get("flavor") || ""),
+        allergens: allergenChoices,
+        pickup_date: String(form.get("pickupDate") || ""),
+        message: String(form.get("message") || "") || null,
+        reference_photo_url: referencePhotoUrl,
       });
+      setSubmitted(true);
     } catch (error) {
-      console.error("Kon bestelling niet versturen naar Jotform:", error);
+      console.error("Kon bestelling niet versturen:", error);
+      setSubmitError("Er ging iets mis bij het versturen. Probeer het opnieuw.");
     } finally {
       setIsSubmitting(false);
-      setSubmitted(true);
     }
   }
 
@@ -123,6 +123,17 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
             required
             type="email"
             placeholder="jij@voorbeeld.be"
+            className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao placeholder:text-cacao-soft/60 focus:border-cherry"
+          />
+        </label>
+
+        <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
+          Jouw telefoonnummer
+          <input
+            name="phone"
+            required
+            type="tel"
+            placeholder="Bv. 0470 12 34 56"
             className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao placeholder:text-cacao-soft/60 focus:border-cherry"
           />
         </label>
@@ -217,8 +228,7 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
             className="rounded-xl border border-dashed border-cacao/25 bg-cream px-4 py-3 text-sm text-cacao-soft file:mr-3 file:rounded-full file:border-0 file:bg-cherry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-cream"
           />
           <span className="text-xs font-normal text-cacao-soft/70">
-            Het bestand zelf wordt niet meegestuurd — mail de foto gerust apart door naar
-            sophie.cardon@live.be.
+            Optioneel — dit helpt me je wens beter te begrijpen.
           </span>
         </label>
 
@@ -238,6 +248,8 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
         verse ingrediënten in huis te halen. Ik stuur snel een bevestiging naar jouw e-mailadres
         en we spreken een afhaalmoment af.
       </p>
+
+      {submitError && <p className="mt-4 text-sm text-cherry">{submitError}</p>}
 
       <div className="mt-6">
         <Button type="submit" className={isSubmitting ? "pointer-events-none opacity-60" : undefined}>

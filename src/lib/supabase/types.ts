@@ -62,3 +62,65 @@ export type CustomCakeOfferInput = {
   detail: string;
   fillings: string[];
 };
+
+export type OrderStatus = "pending" | "accepted" | "declined" | "archived";
+
+export type Order = {
+  id: string;
+  status: OrderStatus;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  occasion: string;
+  servings: number;
+  flavor: string;
+  allergens: string[];
+  pickup_date: string;
+  message: string | null;
+  reference_photo_url: string | null;
+  price: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrderInput = {
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  occasion: string;
+  servings: number;
+  flavor: string;
+  allergens: string[];
+  pickup_date: string;
+  message: string | null;
+  reference_photo_url: string | null;
+};
+
+export type InvoiceStatus = "pending" | "sent" | "failed";
+
+/** Mirrors the `invoices` table (managed mostly by the tarterie-invoicing trigger.dev project). */
+export type Invoice = {
+  id: string;
+  order_id: string;
+  invoice_number: string | null;
+  pdf_storage_path: string | null;
+  payment_reference: string | null;
+  status: InvoiceStatus;
+  paid: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Fields Sophie can edit on a pending order before accepting it. */
+export type OrderEditableFields = {
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  occasion: string;
+  servings: number;
+  flavor: string;
+  allergens: string[];
+  pickup_date: string;
+  message: string | null;
+};

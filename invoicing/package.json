@@ -1,0 +1,25 @@
+{
+  "name": "tarterie-invoicing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx trigger.dev@latest dev",
+    "deploy": "npx trigger.dev@latest deploy"
+  },
+  "dependencies": {
+    "@composio/core": "^0.14.0",
+    "@supabase/supabase-js": "^2.110.9",
+    "@trigger.dev/sdk": "4.5.8",
+    "pdfkit": "^0.15.1",
+    "qrcode": "^1.5.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@trigger.dev/build": "4.5.8",
+    "@types/node": "^22.10.5",
+    "@types/pdfkit": "^0.13.9",
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.7.2"
+  }
+}

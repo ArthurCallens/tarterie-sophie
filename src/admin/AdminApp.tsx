@@ -9,6 +9,9 @@ import { ProductsPage } from "./products/ProductsPage";
 import { ProductForm } from "./products/ProductForm";
 import { CustomCakePage } from "./custom-cake/CustomCakePage";
 import { AccountPage } from "./account/AccountPage";
+import { OrdersPage } from "./orders/OrdersPage";
+import { CalendarPage } from "./calendar/CalendarPage";
+import { ArchivePage } from "./archive/ArchivePage";
 
 export function AdminApp() {
   return (
@@ -23,7 +26,10 @@ export function AdminApp() {
             <RequireAuth>
               <AdminLayout>
                 <Routes>
-                  <Route index element={<Navigate to="products" replace />} />
+                  <Route index element={<Navigate to="orders" replace />} />
+                  <Route path="orders" element={<OrdersPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="archive" element={<ArchivePage />} />
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="products/new" element={<ProductForm />} />
                   <Route path="products/:id/edit" element={<ProductForm />} />
