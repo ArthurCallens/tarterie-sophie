@@ -82,6 +82,18 @@ export type Order = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // Snapshot of what the client originally submitted — set once at creation
+  // by a DB trigger, never touched by later edits. A permanent memory of the
+  // original request regardless of how many times the live fields change.
+  original_customer_name: string;
+  original_customer_email: string;
+  original_customer_phone: string | null;
+  original_occasion: string;
+  original_servings: number;
+  original_flavor: string;
+  original_allergens: string[];
+  original_pickup_date: string;
+  original_message: string | null;
 };
 
 export type OrderInput = {

@@ -20,6 +20,8 @@ type OrderCardProps = {
   onResendInvoice?: (order: Order) => void;
 };
 
+type FieldKey = "name" | "email" | "phone" | "occasion" | "servings" | "flavor" | "allergens" | "pickupDate" | "message";
+
 function TrashIcon() {
   return (
     <svg
@@ -65,10 +67,125 @@ function parsePrice(raw: string): number | null {
 const inputClass =
   "rounded-lg border border-cacao/15 bg-cream px-3 py-1.5 text-sm text-cacao focus:border-cherry";
 
-/** Shown under a field once its local value diverges from what's saved, so nothing gets lost unnoticed. */
-function OriginalHint({ current, original }: { current: string; original: string }) {
-  if (current === original) return null;
-  return <span className="text-[11px] text-cacao-soft/70">was: {original || "(leeg)"}</span>;
+const wijzigButtonClass =
+  "shrink-0 rounded-full bg-cacao/10 px-2.5 py-0.5 text-[11px] font-semibold text-cacao-soft hover:bg-cacao/20";
+
+/**
+ * A single client-supplied field: read-only by default (guarded against
+ * accidental changes), unlocked into an editable input only after an
+ * explicit "Wijzig" click. Always shows what the client originally typed
+ * underneath once the current value diverges from it — a permanent memory,
+ * not just a during-edit hint, since `original` comes from a DB snapshot
+ * that's never overwritten by later saves.
+ */
+function EditableField({
+  label,
+  value,
+  original,
+  onChange,
+  unlocked,
+  onUnlock,
+  type = "text",
+  min,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  original: string;
+  onChange: (value: string) => void;
+  unlocked: boolean;
+  onUnlock: () => void;
+  type?: "text" | "email" | "tel" | "number" | "date";
+  min?: number;
+  multiline?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-cacao">{label}</span>
+        {!unlocked && (
+          <button type="button" onClick={onUnlock} className={wijzigButtonClass}>
+            Wijzig
+          </button>
+        )}
+      </div>
+      {unlocked ? (
+        multiline ? (
+          <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} className={inputClass} />
+        ) : (
+          <input
+            type={type}
+            min={min}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={inputClass}
+          />
+        )
+      ) : (
+        <p className="rounded-lg bg-cream px-3 py-1.5 text-cacao">{value || "—"}</p>
+      )}
+      {original !== value && (
+        <p className="text-[11px] text-cacao-soft/70">Klant vulde in: {original || "(leeg)"}</p>
+      )}
+    </div>
+  );
+}
+
+/** Same guarded-edit pattern as EditableField, but for the allergens multi-select. */
+function AllergensField({
+  allergens,
+  original,
+  onToggle,
+  unlocked,
+  onUnlock,
+}: {
+  allergens: string[];
+  original: string[];
+  onToggle: (label: string) => void;
+  unlocked: boolean;
+  onUnlock: () => void;
+}) {
+  const joined = allergens.join(", ");
+  const joinedOriginal = original.join(", ");
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-cacao">Allergenen</span>
+        {!unlocked && (
+          <button type="button" onClick={onUnlock} className={wijzigButtonClass}>
+            Wijzig
+          </button>
+        )}
+      </div>
+      {unlocked ? (
+        <div className="flex flex-wrap gap-1.5">
+          {ALLERGENS.map((allergen) => {
+            const active = allergens.includes(allergen.label);
+            return (
+              <button
+                key={allergen.id}
+                type="button"
+                onClick={() => onToggle(allergen.label)}
+                aria-pressed={active}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-cherry bg-cherry text-cream"
+                    : "border-cacao/20 bg-cream text-cacao-soft hover:border-cherry"
+                }`}
+              >
+                {allergen.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-lg bg-cream px-3 py-1.5 text-cacao">{allergens.length > 0 ? joined : "geen opgegeven"}</p>
+      )}
+      {joined !== joinedOriginal && (
+        <p className="text-[11px] text-cacao-soft/70">Klant gaf op: {original.length > 0 ? joinedOriginal : "geen"}</p>
+      )}
+    </div>
+  );
 }
 
 export function OrderCard({
@@ -98,7 +215,7 @@ export function OrderCard({
     if (invoice) await onTogglePaid?.(invoice, checked);
   }
 
-  // Editable copy of the order's own fields — only used while status === "pending".
+  // Editable copy of the order's own client-supplied fields.
   const [name, setName] = useState(order.customer_name);
   const [email, setEmail] = useState(order.customer_email);
   const [phone, setPhone] = useState(order.customer_phone ?? "");
@@ -108,9 +225,12 @@ export function OrderCard({
   const [allergens, setAllergens] = useState<string[]>(order.allergens);
   const [pickupDate, setPickupDate] = useState(order.pickup_date);
   const [message, setMessage] = useState(order.message ?? "");
-  const [savingFields, setSavingFields] = useState(false);
-  const isEditingPending = !readOnly && order.status === "pending";
-  const isEditingContactOnly = !readOnly && order.status === "accepted";
+  const [unlocked, setUnlocked] = useState<Set<FieldKey>>(new Set());
+  const isEditableStatus = !readOnly && (order.status === "pending" || order.status === "accepted");
+
+  function unlock(key: FieldKey) {
+    setUnlocked((prev) => new Set(prev).add(key));
+  }
 
   function toggleAllergen(label: string) {
     setAllergens((prev) => (prev.includes(label) ? prev.filter((a) => a !== label) : [...prev, label]));
@@ -130,34 +250,26 @@ export function OrderCard({
     };
   }
 
-  async function handleSaveFields() {
-    if (!onSaveFields || savingFields) return;
-    setSavingFields(true);
-    try {
-      await onSaveFields(order, currentFieldEdits());
-    } finally {
-      setSavingFields(false);
-    }
-  }
-
   async function handleAccept() {
     if (parsedPrice === null) return;
     if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+    setUnlocked(new Set());
     onAccept?.(order, parsedPrice);
   }
 
   async function handleDecline() {
     if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+    setUnlocked(new Set());
     onDecline?.(order);
   }
 
   /**
    * The single save action for an accepted order — persists both the
-   * contact-info edits (name/email/phone, above) and price/notes together.
-   * Having two separate "save" buttons on the same card was the real bug:
-   * clicking the price save without also saving contact edits looked fine
-   * (the input kept showing the typed value) but never wrote the contact
-   * fields to the database, so they'd revert on the next real page load.
+   * client-field edits (above) and price/notes together. Having separate
+   * "save" buttons on the same card was a real bug in an earlier version:
+   * clicking one without the other looked fine (the input kept showing the
+   * typed value) but silently never wrote part of it to the database, so it
+   * reverted on the next real page load.
    */
   async function handleSave() {
     if (saving) return;
@@ -165,6 +277,7 @@ export function OrderCard({
     try {
       if (onSaveFields) await onSaveFields(order, currentFieldEdits());
       if (onSaveDetails) await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
+      setUnlocked(new Set());
     } finally {
       setSaving(false);
     }
@@ -177,6 +290,7 @@ export function OrderCard({
     try {
       // Persist any corrected contact info first, so the resend uses it.
       if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+      setUnlocked(new Set());
       await onResendInvoice(order);
     } finally {
       setResending(false);
@@ -243,45 +357,95 @@ export function OrderCard({
 
       {expanded && (
         <>
-          {!isEditingPending && (
+          {isEditableStatus ? (
+            <div className="mt-3 space-y-3 border-t border-cacao/10 pt-3">
+              <p className="text-[11px] text-cacao-soft/70">
+                Klik "Wijzig" om een veld aan te passen — handig als de klant nog iets anders wil.
+              </p>
+              <EditableField
+                label="Naam"
+                value={name}
+                original={order.original_customer_name}
+                onChange={setName}
+                unlocked={unlocked.has("name")}
+                onUnlock={() => unlock("name")}
+              />
+              <EditableField
+                label="E-mail"
+                value={email}
+                original={order.original_customer_email}
+                onChange={setEmail}
+                unlocked={unlocked.has("email")}
+                onUnlock={() => unlock("email")}
+                type="email"
+              />
+              <EditableField
+                label="Telefoon"
+                value={phone}
+                original={order.original_customer_phone ?? ""}
+                onChange={setPhone}
+                unlocked={unlocked.has("phone")}
+                onUnlock={() => unlock("phone")}
+                type="tel"
+              />
+              <EditableField
+                label="Gelegenheid"
+                value={occasion}
+                original={order.original_occasion}
+                onChange={setOccasion}
+                unlocked={unlocked.has("occasion")}
+                onUnlock={() => unlock("occasion")}
+              />
+              <EditableField
+                label="Aantal personen"
+                value={servings}
+                original={String(order.original_servings)}
+                onChange={setServings}
+                unlocked={unlocked.has("servings")}
+                onUnlock={() => unlock("servings")}
+                type="number"
+                min={1}
+              />
+              <EditableField
+                label="Taart"
+                value={flavor}
+                original={order.original_flavor}
+                onChange={setFlavor}
+                unlocked={unlocked.has("flavor")}
+                onUnlock={() => unlock("flavor")}
+              />
+              <AllergensField
+                allergens={allergens}
+                original={order.original_allergens}
+                onToggle={toggleAllergen}
+                unlocked={unlocked.has("allergens")}
+                onUnlock={() => unlock("allergens")}
+              />
+              <EditableField
+                label="Afhaaldatum"
+                value={pickupDate}
+                original={order.original_pickup_date}
+                onChange={setPickupDate}
+                unlocked={unlocked.has("pickupDate")}
+                onUnlock={() => unlock("pickupDate")}
+                type="date"
+              />
+              <EditableField
+                label="Bericht"
+                value={message}
+                original={order.original_message ?? ""}
+                onChange={setMessage}
+                unlocked={unlocked.has("message")}
+                onUnlock={() => unlock("message")}
+                multiline
+              />
+            </div>
+          ) : (
             <>
-              {isEditingContactOnly ? (
-                <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] text-cacao-soft/70">
-                    Aanpasbaar — wordt opgeslagen samen met prijs/notities via "Opslaan" hieronder.
-                  </p>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                    Naam
-                    <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-                    <OriginalHint current={name} original={order.customer_name} />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                    E-mail
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className={inputClass}
-                    />
-                    <OriginalHint current={email} original={order.customer_email} />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                    Telefoon
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className={inputClass}
-                    />
-                    <OriginalHint current={phone} original={order.customer_phone ?? ""} />
-                  </label>
-                </div>
-              ) : (
-                <p className="text-cacao-soft">{order.customer_email}</p>
-              )}
+              <p className="text-cacao-soft">{order.customer_email}</p>
 
               <dl className="mt-3 space-y-1 text-cacao-soft">
-                {!isEditingContactOnly && order.customer_phone && (
+                {order.customer_phone && (
                   <div>
                     <dt className="inline font-medium text-cacao">Telefoon: </dt>
                     <dd className="inline">{order.customer_phone}</dd>
@@ -323,105 +487,6 @@ export function OrderCard({
                 className="h-20 w-20 rounded-lg object-cover"
               />
             </a>
-          )}
-
-          {isEditingPending && (
-            <div className="mt-3 space-y-2 border-t border-cacao/10 pt-3">
-              <p className="text-xs text-cacao-soft">
-                Alle gegevens hieronder zijn aanpasbaar — handig als je met de klant hebt gebeld/ge-sms't.
-              </p>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Naam
-                <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-                <OriginalHint current={name} original={order.customer_name} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                E-mail
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={inputClass}
-                />
-                <OriginalHint current={email} original={order.customer_email} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Telefoon
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
-                <OriginalHint current={phone} original={order.customer_phone ?? ""} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Gelegenheid
-                <input value={occasion} onChange={(e) => setOccasion(e.target.value)} className={inputClass} />
-                <OriginalHint current={occasion} original={order.occasion} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Aantal personen
-                <input
-                  type="number"
-                  min={1}
-                  value={servings}
-                  onChange={(e) => setServings(e.target.value)}
-                  className={inputClass}
-                />
-                <OriginalHint current={servings} original={String(order.servings)} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Taart
-                <input value={flavor} onChange={(e) => setFlavor(e.target.value)} className={inputClass} />
-                <OriginalHint current={flavor} original={order.flavor} />
-              </label>
-              <div>
-                <p className="text-xs font-medium text-cacao">Allergenen</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {ALLERGENS.map((allergen) => {
-                    const active = allergens.includes(allergen.label);
-                    return (
-                      <button
-                        key={allergen.id}
-                        type="button"
-                        onClick={() => toggleAllergen(allergen.label)}
-                        aria-pressed={active}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          active
-                            ? "border-cherry bg-cherry text-cream"
-                            : "border-cacao/20 bg-cream text-cacao-soft hover:border-cherry"
-                        }`}
-                      >
-                        {allergen.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Afhaaldatum
-                <input
-                  type="date"
-                  value={pickupDate}
-                  onChange={(e) => setPickupDate(e.target.value)}
-                  className={inputClass}
-                />
-                <OriginalHint current={pickupDate} original={order.pickup_date} />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Bericht
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={2}
-                  className={inputClass}
-                />
-                <OriginalHint current={message} original={order.message ?? ""} />
-              </label>
-              <button
-                type="button"
-                onClick={() => void handleSaveFields()}
-                className={`rounded-full bg-cacao/10 px-4 py-1.5 text-xs font-semibold text-cacao-soft hover:bg-cacao/20 ${savingFields ? "pointer-events-none opacity-60" : ""}`}
-              >
-                {savingFields ? "Bezig met opslaan…" : "Wijzigingen opslaan"}
-              </button>
-            </div>
           )}
 
           {!readOnly && order.status === "pending" && (
@@ -471,7 +536,6 @@ export function OrderCard({
                   placeholder="Bv. 45"
                   className={inputClass}
                 />
-                <OriginalHint current={price} original={order.price === null ? "" : String(order.price)} />
               </label>
               <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                 Notities
@@ -482,7 +546,6 @@ export function OrderCard({
                   placeholder="Interne notities…"
                   className={inputClass}
                 />
-                <OriginalHint current={notes} original={order.notes ?? ""} />
               </label>
               {invoice ? (
                 <div className="rounded-lg bg-cacao/5 px-3 py-2 text-xs text-cacao-soft">
