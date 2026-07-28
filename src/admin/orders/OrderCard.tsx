@@ -17,6 +17,7 @@ type OrderCardProps = {
   onRestore?: (order: Order, price: number) => void;
   onDelete?: (order: Order) => void;
   onTogglePaid?: (invoice: Invoice, paid: boolean) => void;
+  onResendInvoice?: (order: Order) => void;
 };
 
 function TrashIcon() {
@@ -60,11 +61,13 @@ export function OrderCard({
   onRestore,
   onDelete,
   onTogglePaid,
+  onResendInvoice,
 }: OrderCardProps) {
   const [price, setPrice] = useState(order.price === null ? "" : String(order.price));
   const [notes, setNotes] = useState(order.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [paid, setPaid] = useState(invoice?.paid ?? false);
+  const [resending, setResending] = useState(false);
   const parsedPrice = parsePrice(price);
 
   async function handleTogglePaid(checked: boolean) {
@@ -84,6 +87,7 @@ export function OrderCard({
   const [message, setMessage] = useState(order.message ?? "");
   const [savingFields, setSavingFields] = useState(false);
   const isEditingPending = !readOnly && order.status === "pending";
+  const isEditingContactOnly = !readOnly && order.status === "accepted";
 
   function toggleAllergen(label: string) {
     setAllergens((prev) => (prev.includes(label) ? prev.filter((a) => a !== label) : [...prev, label]));
@@ -134,6 +138,19 @@ export function OrderCard({
     }
   }
 
+  async function handleResend() {
+    if (!onResendInvoice || resending) return;
+    if (!window.confirm(`Factuur opnieuw versturen naar ${email}?`)) return;
+    setResending(true);
+    try {
+      // Persist any corrected contact info first, so the resend uses it.
+      if (onSaveFields) await onSaveFields(order, currentFieldEdits());
+      await onResendInvoice(order);
+    } finally {
+      setResending(false);
+    }
+  }
+
   function handleSoftDelete() {
     if (!onDecline) return;
     if (!window.confirm(`Bestelling van "${order.customer_name}" verwijderen? Ze verhuist naar Geweigerd.`)) return;
@@ -173,10 +190,39 @@ export function OrderCard({
 
       {!isEditingPending && (
         <>
-          <p className="text-cacao-soft">{order.customer_email}</p>
+          {isEditingContactOnly ? (
+            <div className="mt-2 space-y-1.5">
+              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                Naam
+                <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                E-mail
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                Telefoon
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleSaveFields()}
+                className={`rounded-full bg-cacao/10 px-3 py-1 text-xs font-semibold text-cacao-soft hover:bg-cacao/20 ${savingFields ? "pointer-events-none opacity-60" : ""}`}
+              >
+                {savingFields ? "Bezig met opslaan…" : "Contactgegevens opslaan"}
+              </button>
+            </div>
+          ) : (
+            <p className="text-cacao-soft">{order.customer_email}</p>
+          )}
 
           <dl className="mt-3 space-y-1 text-cacao-soft">
-            {order.customer_phone && (
+            {!isEditingContactOnly && order.customer_phone && (
               <div>
                 <dt className="inline font-medium text-cacao">Telefoon: </dt>
                 <dd className="inline">{order.customer_phone}</dd>
@@ -367,17 +413,23 @@ export function OrderCard({
               className={inputClass}
             />
           </label>
-          {invoice && (
+          {invoice ? (
             <div className="rounded-lg bg-cacao/5 px-3 py-2 text-xs text-cacao-soft">
               <p>
                 <span className="font-medium text-cacao">Betaalmededeling: </span>
                 {invoice.payment_reference ?? invoice.invoice_number ?? "nog niet beschikbaar"}
+              </p>
+              <p className="mt-1">
+                <span className="font-medium text-cacao">Factuurstatus: </span>
+                {invoice.status === "sent" ? "verzonden" : invoice.status === "failed" ? "mislukt" : "bezig met versturen"}
               </p>
               <label className="mt-1.5 flex items-center gap-2">
                 <input type="checkbox" checked={paid} onChange={(e) => void handleTogglePaid(e.target.checked)} />
                 Al betaald
               </label>
             </div>
+          ) : (
+            <p className="rounded-lg bg-cacao/5 px-3 py-2 text-xs text-cacao-soft">Factuur wordt gegenereerd…</p>
           )}
           <div className="flex flex-wrap gap-2">
             <button
@@ -387,6 +439,19 @@ export function OrderCard({
             >
               {saving ? "Bezig met opslaan…" : "Opslaan"}
             </button>
+            {onResendInvoice && (
+              <button
+                type="button"
+                onClick={() => void handleResend()}
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                  invoice?.status === "failed"
+                    ? "bg-cherry text-cream hover:bg-cherry-dark"
+                    : "bg-cacao/10 text-cacao-soft hover:bg-cacao/20"
+                } ${resending ? "pointer-events-none opacity-60" : ""}`}
+              >
+                {resending ? "Bezig met versturen…" : invoice ? "Factuur opnieuw versturen" : "Factuur versturen"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onArchive?.(order)}
@@ -407,6 +472,11 @@ export function OrderCard({
 
       {!readOnly && order.status === "declined" && onRestore && (
         <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
+          <p className="text-xs text-cacao-soft">
+            {invoice?.status === "sent"
+              ? "Er is al een factuur verzonden voor deze bestelling — die wordt niet automatisch opnieuw gestuurd."
+              : "Er is nog geen factuur succesvol verzonden — bij herstellen wordt er automatisch één verstuurd."}
+          </p>
           <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
             Prijs (EUR) — vereist om te herstellen
             <input

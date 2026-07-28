@@ -13,3 +13,14 @@ export async function setInvoicePaid(id: string, paid: boolean): Promise<Invoice
   if (error) throw error;
   return data as Invoice;
 }
+
+/**
+ * Manually (re)sends an accepted order's invoice — regenerates the PDF with
+ * the order's current data (e.g. a corrected email) and always sends,
+ * regardless of whether one was already sent before.
+ */
+export async function resendInvoice(orderId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("resend-invoice", { body: { orderId } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+}

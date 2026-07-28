@@ -17,6 +17,7 @@ export function OrdersPage() {
     saveFields,
     remove,
     togglePaid,
+    resendOrderInvoice,
   } = useOrders();
 
   return (
@@ -54,9 +55,11 @@ export function OrdersPage() {
                   order={order}
                   invoice={invoicesByOrderId.get(order.id)}
                   onSaveDetails={saveDetails}
+                  onSaveFields={saveFields}
                   onArchive={archive}
                   onDecline={decline}
                   onTogglePaid={togglePaid}
+                  onResendInvoice={resendOrderInvoice}
                 />
               ))}
             </div>
@@ -67,7 +70,13 @@ export function OrdersPage() {
             <div className="mt-3 space-y-3">
               {declined.length === 0 && <p className="text-sm text-cacao-soft">Geen geweigerde bestellingen.</p>}
               {declined.map((order) => (
-                <OrderCard key={order.id} order={order} onRestore={restore} onDelete={remove} />
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  invoice={invoicesByOrderId.get(order.id)}
+                  onRestore={restore}
+                  onDelete={remove}
+                />
               ))}
             </div>
           </section>

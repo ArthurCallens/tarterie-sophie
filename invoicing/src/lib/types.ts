@@ -18,13 +18,20 @@ export type OrderRow = {
   updated_at: string;
 };
 
-/** The Postgres Database Webhook payload shape for an UPDATE event. */
+/**
+ * The payload `generateInvoiceAndSend` receives. Two ways in:
+ *  - the Postgres Database Webhook (an UPDATE event) when status → 'accepted'.
+ *  - the `resend-invoice` Edge Function, for a manual resend Sophie triggers
+ *    from the dashboard (sets `forceResend: true`, bypasses the "already sent"
+ *    and "not a fresh acceptance" guards — see generateInvoiceAndSend.ts).
+ */
 export type OrdersWebhookPayload = {
-  type: "UPDATE";
+  type: string;
   table: "orders";
   schema: "public";
   record: OrderRow;
-  old_record: OrderRow;
+  old_record?: OrderRow;
+  forceResend?: boolean;
 };
 
 /** Mirrors the `invoices` table added in 0004_invoices.sql (+ 0006_invoice_payment.sql). */

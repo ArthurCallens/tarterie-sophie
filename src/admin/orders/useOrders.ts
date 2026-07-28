@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAllInvoices, setInvoicePaid } from "../../lib/supabase/invoices";
+import { getAllInvoices, resendInvoice, setInvoicePaid } from "../../lib/supabase/invoices";
 import {
   acceptOrder,
   deleteOrder,
@@ -80,6 +80,12 @@ export function useOrders() {
     await refresh();
   }
 
+  /** Manually (re)sends an accepted order's invoice — e.g. after correcting a wrong email. */
+  async function resendOrderInvoice(order: Order) {
+    await resendInvoice(order.id);
+    await refresh();
+  }
+
   const invoicesByOrderId = useMemo(() => {
     const map = new Map<string, Invoice>();
     for (const invoice of invoices) map.set(invoice.order_id, invoice);
@@ -112,5 +118,6 @@ export function useOrders() {
     saveFields,
     remove,
     togglePaid,
+    resendOrderInvoice,
   };
 }
