@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAllInvoices, resendInvoice, setInvoicePaid } from "../../lib/supabase/invoices";
 import {
   acceptOrder,
@@ -15,9 +15,15 @@ export function useOrders() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Only the very first fetch should show the page-level "Bezig met laden…"
+  // state. Every later refresh (triggered by an action like saving a field)
+  // must NOT flip `loading` back to true — doing so unmounts every OrderCard
+  // on the page (they're rendered inside `{!loading && ...}`), which wipes
+  // any unsaved local edits on *every* card, not just the one being saved.
+  const hasLoadedOnce = useRef(false);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnce.current) setLoading(true);
     setError(null);
     try {
       const [ordersData, invoicesData] = await Promise.all([getAllOrders(), getAllInvoices()]);
@@ -27,6 +33,7 @@ export function useOrders() {
       setError(err instanceof Error ? err.message : "Kon bestellingen niet laden.");
     } finally {
       setLoading(false);
+      hasLoadedOnce.current = true;
     }
   }, []);
 
