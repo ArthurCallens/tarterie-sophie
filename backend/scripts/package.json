@@ -1,0 +1,13 @@
+{
+  "name": "tarterie-sophie-scripts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "migrate:products": "node --env-file=.env.local migrate-products.mjs",
+    "migrate:site-content": "node --env-file=.env.local migrate-site-content.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.9"
+  }
+}

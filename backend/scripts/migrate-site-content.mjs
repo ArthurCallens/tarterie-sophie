@@ -5,8 +5,8 @@
 // Not idempotent for trust_badges/order_steps/workshops (re-running duplicates
 // them) — page_content rows are upserted, so those are safe to re-run.
 //
-// Usage: npm run migrate:site-content
-// Requires .env.local with VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set.
+// Usage: npm run migrate:site-content (from backend/scripts/)
+// Requires .env.local with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,14 +14,14 @@ import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const photosDir = path.join(__dirname, "..", "src", "assets", "photos");
+const photosDir = path.join(__dirname, "..", "..", "frontend", "src", "assets", "photos");
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error(
-    "Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Copy .env.example to .env.local and fill them in.",
+    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Copy .env.example to .env.local and fill them in.",
   );
   process.exit(1);
 }

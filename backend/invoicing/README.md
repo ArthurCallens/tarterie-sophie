@@ -1,6 +1,6 @@
 # invoicing
 
-Trigger.dev v4 project (lives at `tarterie_sophie/invoicing/`, deployed independently from the Vite app): generates a PDF invoice and emails it to the client whenever an order is marked "accepted" in the Tarterie Sophie admin dashboard.
+Trigger.dev v4 project (lives at `tarterie_sophie/backend/invoicing/`, deployed independently from the Vite app in `frontend/`): generates a PDF invoice and emails it to the client whenever an order is marked "accepted" in the Tarterie Sophie admin dashboard.
 
 ## How it's wired up
 
