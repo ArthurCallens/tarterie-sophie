@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
@@ -10,7 +10,12 @@ import { OverMij } from "./pages/OverMij";
 import { Bestellen } from "./pages/Bestellen";
 import { Workshops } from "./pages/Workshops";
 import { Contact } from "./pages/Contact";
-import { AdminApp } from "./admin/AdminApp";
+
+// Lazy-loaded: keeps the entire /admin dashboard out of the bundle public
+// site visitors download — it's only fetched when someone visits /admin.
+const AdminApp = lazy(() =>
+  import("./admin/AdminApp").then((module) => ({ default: module.AdminApp })),
+);
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -61,7 +66,14 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        <Route path="/admin/*" element={<AdminApp />} />
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={null}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
         <Route path="/*" element={<PublicSite />} />
       </Routes>
     </BrowserRouter>
