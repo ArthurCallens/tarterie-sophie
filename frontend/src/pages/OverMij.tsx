@@ -60,7 +60,7 @@ export function OverMij() {
               </div>
 
               <div className="mt-10">
-                <Button to="/bestellen">Bestel jouw taart bij Sophie</Button>
+                <Button to="/bestellen/bestelbon">Bestel jouw taart bij Sophie</Button>
               </div>
             </Reveal>
           )}

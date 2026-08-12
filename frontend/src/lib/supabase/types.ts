@@ -2,7 +2,7 @@
 // Site CMS — lets Sophie edit every public page's text/photos from /admin.
 // ---------------------------------------------------------------------------
 
-export type PageKey = "home" | "about" | "bestellen" | "contact" | "workshops_banner";
+export type PageKey = "home" | "about" | "bestellen" | "contact" | "workshops_banner" | "decline_email";
 
 export type HomeContent = {
   heroImageUrl: string | null;
@@ -38,6 +38,22 @@ export type ContactContent = {
   email: string;
   instagramUrl: string;
   facebookUrl: string;
+};
+
+/**
+ * Sophie's fully-editable "weigeren" (decline) email template. Supports
+ * placeholder tokens substituted at send time (see
+ * frontend/src/lib/emailTemplate.ts and
+ * backend/invoicing/src/lib/emailTemplate.ts — kept in sync manually, same
+ * as other duplicated business constants in this codebase):
+ *   {{naam}}         — the customer's name
+ *   {{reden}}        — the reason Sophie typed when declining
+ *   {{bedrijfsnaam}} — the business name
+ *   {{eigenaar}}     — Sophie's name (sign-off)
+ */
+export type DeclineEmailContent = {
+  subject: string;
+  body: string;
 };
 
 export type WorkshopsBannerContent = {

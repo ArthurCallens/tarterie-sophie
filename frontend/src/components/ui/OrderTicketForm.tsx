@@ -1,29 +1,70 @@
 import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { ALLERGENS } from "../../lib/data";
-import type { Product } from "../../lib/supabase/types";
+import type { CustomCakeOffer, Product } from "../../lib/supabase/types";
+import { formatPriceEUR } from "../../lib/supabase/format";
 import { Button } from "./Button";
 import { SuccessBurst } from "../motion/SuccessBurst";
 import { submitOrder, uploadOrderReferencePhoto } from "../../lib/supabase/orders";
 
 type OrderTicketFormProps = {
   products: Product[];
+  customCake?: CustomCakeOffer | null;
 };
 
-export function OrderTicketForm({ products }: OrderTicketFormProps) {
-  const CAKE_OPTIONS = products.map((p) => p.name);
+const CUSTOM_CAKE_ID = "custom";
+const CUSTOM_CAKE_LABEL = "Gepersonaliseerde themataart (op maat)";
+
+type Unit = "personen" | "stuks";
+
+type Selection = {
+  label: string;
+  unit: Unit;
+  qty: number;
+};
+
+function describeSelection(selection: Selection): string {
+  return selection.unit === "stuks"
+    ? `${selection.label} (${selection.qty} stuks)`
+    : `${selection.label} (voor ${selection.qty} personen)`;
+}
+
+export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [allergenChoices, setAllergenChoices] = useState<string[]>([]);
+  const [selections, setSelections] = useState<Record<string, Selection>>({});
 
   function toggleAllergen(id: string) {
     setAllergenChoices((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
   }
 
+  function toggleSelection(id: string, label: string, unit: Unit) {
+    setSelections((prev) => {
+      if (prev[id]) {
+        const { [id]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: { label, unit, qty: 1 } };
+    });
+  }
+
+  function setQty(id: string, qty: number) {
+    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: Math.max(1, qty || 1) } } : prev));
+  }
+
+  const selectedIds = Object.keys(selections);
+  const classics = products.filter((p) => p.category === "klassieker");
+  const smallPastries = products.filter((p) => p.category === "klein-gebak");
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
+    if (selectedIds.length === 0) {
+      setSubmitError("Kies minstens één taart.");
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -39,7 +80,7 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
         customer_phone: String(form.get("phone") || ""),
         occasion: String(form.get("occasion") || ""),
         servings: Number(form.get("servings") || 0),
-        flavor: String(form.get("flavor") || ""),
+        flavor: selectedIds.map((id) => describeSelection(selections[id])).join(", "),
         allergens: allergenChoices,
         pickup_date: String(form.get("pickupDate") || ""),
         message: String(form.get("message") || "") || null,
@@ -94,7 +135,7 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
       <p className="font-stamp text-xs uppercase tracking-[0.2em] text-cherry">Bestelbon</p>
       <h3 className="mt-2 font-display text-2xl text-cacao">Vertel me over je feestje</h3>
 
-      <div className="mt-8 grid gap-6 sm:grid-cols-2">
+      <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
         <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
           Jouw naam
           <input
@@ -139,37 +180,115 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
           />
         </label>
 
-        <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
-          Aantal personen
+        <label className="flex flex-col gap-2 text-sm font-medium text-cacao sm:col-span-2">
+          Totaal aantal gasten
           <input
             name="servings"
             required
             type="number"
             min={1}
             placeholder="Bv. 12"
-            className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao placeholder:text-cacao-soft/60 focus:border-cherry"
+            className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao placeholder:text-cacao-soft/60 focus:border-cherry sm:max-w-xs"
           />
         </label>
 
-        <label className="flex flex-col gap-2 text-sm font-medium text-cacao sm:col-span-2">
-          Gewenste taart
-          <select
-            name="flavor"
-            required
-            defaultValue=""
-            className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
+        <fieldset className="min-w-0 sm:col-span-2">
+          <legend className="text-sm font-medium text-cacao">
+            Gewenste taart <span className="font-normal text-cacao-soft">(kies één of meerdere)</span>
+          </legend>
+
+          {/* Custom cake — the star of the show, always shown first and bigger. */}
+          <div
+            className={`mt-3 overflow-hidden rounded-2xl border-2 transition-colors ${
+              selections[CUSTOM_CAKE_ID] ? "border-cherry bg-cherry/5" : "border-cherry/40 bg-cream"
+            }`}
           >
-            <option value="" disabled>
-              Kies een klassieker of vraag iets persoonlijks
-            </option>
-            {CAKE_OPTIONS.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-            <option value="Gepersonaliseerde themataart">Gepersonaliseerde themataart (op maat)</option>
-          </select>
-        </label>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.005 }}
+              whileTap={{ scale: 0.995 }}
+              onClick={() => toggleSelection(CUSTOM_CAKE_ID, CUSTOM_CAKE_LABEL, "personen")}
+              aria-pressed={Boolean(selections[CUSTOM_CAKE_ID])}
+              className="flex w-full items-stretch gap-4 text-left"
+            >
+              {customCake?.gallery?.[0] && (
+                <img
+                  src={customCake.gallery[0].image_url}
+                  alt={customCake.gallery[0].alt_text}
+                  loading="lazy"
+                  className="h-28 w-28 shrink-0 object-cover sm:h-32 sm:w-32"
+                />
+              )}
+              <span className="flex flex-1 flex-col justify-center py-3 pr-4">
+                <span className="flex items-center gap-2">
+                  <span className="font-script text-2xl text-cherry">✦</span>
+                  <span className="font-display text-lg text-cacao">Gepersonaliseerde themataart</span>
+                </span>
+                <span className="mt-1 text-sm text-cacao-soft">
+                  Op maat gemaakt voor jouw feestje — thema, kleuren, alles bespreekbaar.
+                </span>
+                {customCake && (
+                  <span className="mt-1 font-display text-sm text-cherry">
+                    vanaf {formatPriceEUR(customCake.price)} {customCake.price_unit}
+                  </span>
+                )}
+              </span>
+            </motion.button>
+            {selections[CUSTOM_CAKE_ID] && (
+              <label className="flex items-center gap-2 border-t border-cherry/20 bg-cream px-4 py-2.5 text-sm font-medium text-cacao">
+                Voor hoeveel personen?
+                <input
+                  type="number"
+                  min={1}
+                  value={selections[CUSTOM_CAKE_ID].qty}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setQty(CUSTOM_CAKE_ID, Number(e.target.value))}
+                  className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
+                />
+              </label>
+            )}
+          </div>
+
+          {classics.length > 0 && (
+            <>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-cacao-soft">Of kies een klassieker</p>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {classics.map((product) => (
+                  <CakeChoiceCard
+                    key={product.id}
+                    product={product}
+                    unit="personen"
+                    unitLabel="Voor hoeveel personen?"
+                    selection={selections[product.id]}
+                    onToggle={() => toggleSelection(product.id, product.name, "personen")}
+                    onQtyChange={(qty) => setQty(product.id, qty)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {smallPastries.length > 0 && (
+            <>
+              <p className="mt-5 text-xs font-medium uppercase tracking-wide text-cacao-soft">
+                Of kies iets voor bij de koffie
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {smallPastries.map((product) => (
+                  <CakeChoiceCard
+                    key={product.id}
+                    product={product}
+                    unit="stuks"
+                    unitLabel="Aantal stuks?"
+                    selection={selections[product.id]}
+                    onToggle={() => toggleSelection(product.id, product.name, "stuks")}
+                    onQtyChange={(qty) => setQty(product.id, qty)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </fieldset>
 
         <fieldset className="sm:col-span-2">
           <legend className="text-sm font-medium text-cacao">
@@ -247,5 +366,70 @@ export function OrderTicketForm({ products }: OrderTicketFormProps) {
         </Button>
       </div>
     </form>
+  );
+}
+
+function CakeChoiceCard({
+  product,
+  unit,
+  unitLabel,
+  selection,
+  onToggle,
+  onQtyChange,
+}: {
+  product: Product;
+  unit: Unit;
+  unitLabel: string;
+  selection?: Selection;
+  onToggle: () => void;
+  onQtyChange: (qty: number) => void;
+}) {
+  const image = product.images[0];
+  const active = Boolean(selection);
+
+  return (
+    <div
+      className={`min-w-0 overflow-hidden rounded-2xl border-2 transition-colors ${
+        active ? "border-cherry bg-cherry/5" : "border-cacao/10 bg-cream hover:border-cherry/50"
+      }`}
+    >
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onToggle}
+        aria-pressed={active}
+        className="block w-full text-left"
+      >
+        {image ? (
+          <img
+            src={image.image_url}
+            alt={image.alt_text}
+            loading="lazy"
+            className="aspect-[4/3] w-full object-cover"
+          />
+        ) : (
+          <div className="aspect-[4/3] w-full bg-cream-dark" aria-hidden="true" />
+        )}
+        <div className="px-2.5 py-2">
+          <p className="font-display text-sm leading-tight text-cacao">{product.name}</p>
+          <p className="mt-0.5 font-display text-xs text-cherry">{formatPriceEUR(product.price)} EUR</p>
+        </div>
+      </motion.button>
+      {active && selection && (
+        <label className="flex flex-col gap-1 border-t border-cherry/20 px-2.5 py-2 text-xs font-medium text-cacao">
+          {unitLabel}
+          <input
+            type="number"
+            min={1}
+            value={selection.qty}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onQtyChange(Number(e.target.value))}
+            className="w-full rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
+          />
+          <span className="sr-only">{unit}</span>
+        </label>
+      )}
+    </div>
   );
 }

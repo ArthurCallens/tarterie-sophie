@@ -10,50 +10,58 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b-4 border-cherry/90 bg-cream/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <Link to="/" className="flex flex-col leading-none" onClick={() => setOpen(false)}>
           <span className="font-display text-2xl font-semibold text-cacao">{SITE.name}</span>
           <span className="font-script text-lg text-cherry -mt-1">{SITE.tagline}</span>
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "font-body text-[15px] font-medium text-cacao-soft transition-colors hover:text-cherry",
-                  isActive && "text-cherry",
-                )
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-          <Button to="/bestellen" className="px-5! py-2.5! text-sm!">
-            Bestel een taart
-          </Button>
-        </nav>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <nav className="hidden items-center gap-7 md:flex">
+            {NAV_LINKS.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "font-body text-[15px] font-medium text-cacao-soft transition-colors hover:text-cherry",
+                    isActive && "text-cherry",
+                  )
+                }
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </nav>
 
-        <button
-          type="button"
-          className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 md:hidden"
-          aria-label={open ? "Sluit menu" : "Open menu"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <motion.span
-            animate={{ rotate: open ? 45 : 0, y: open ? 6 : 0 }}
-            className="block h-0.5 w-6 rounded-full bg-cacao"
-          />
-          <motion.span animate={{ opacity: open ? 0 : 1 }} className="block h-0.5 w-6 rounded-full bg-cacao" />
-          <motion.span
-            animate={{ rotate: open ? -45 : 0, y: open ? -6 : 0 }}
-            className="block h-0.5 w-6 rounded-full bg-cacao"
-          />
-        </button>
+          <Button
+            to="/bestellen/bestelbon"
+            onClick={() => setOpen(false)}
+            className="shrink-0 whitespace-nowrap px-3! py-2! text-[13px]! sm:px-5! sm:py-2.5! sm:text-sm!"
+          >
+            <span className="sm:hidden">Bestellen</span>
+            <span className="hidden sm:inline">Bestel een taart</span>
+          </Button>
+
+          <button
+            type="button"
+            className="flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-1.5 md:hidden"
+            aria-label={open ? "Sluit menu" : "Open menu"}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <motion.span
+              animate={{ rotate: open ? 45 : 0, y: open ? 6 : 0 }}
+              className="block h-0.5 w-6 rounded-full bg-cacao"
+            />
+            <motion.span animate={{ opacity: open ? 0 : 1 }} className="block h-0.5 w-6 rounded-full bg-cacao" />
+            <motion.span
+              animate={{ rotate: open ? -45 : 0, y: open ? -6 : 0 }}
+              className="block h-0.5 w-6 rounded-full bg-cacao"
+            />
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>

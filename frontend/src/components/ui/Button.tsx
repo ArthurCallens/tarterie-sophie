@@ -33,7 +33,7 @@ export function Button({ children, to, href, variant = "stamp", className, type 
   if (to) {
     return (
       <motion.div {...motionProps} className="inline-block">
-        <Link to={to} className={classes}>
+        <Link to={to} onClick={onClick} className={classes}>
           {children}
         </Link>
       </motion.div>
@@ -43,7 +43,13 @@ export function Button({ children, to, href, variant = "stamp", className, type 
   if (href) {
     return (
       <motion.div {...motionProps} className="inline-block">
-        <a href={href} className={classes} target={href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+        <a
+          href={href}
+          onClick={onClick}
+          className={classes}
+          target={href.startsWith("http") ? "_blank" : undefined}
+          rel="noreferrer"
+        >
           {children}
         </a>
       </motion.div>

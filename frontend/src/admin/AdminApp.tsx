@@ -17,6 +17,7 @@ import { SiteHomePage } from "./site/SiteHomePage";
 import { SiteAboutPage } from "./site/SiteAboutPage";
 import { SiteBestellenPage } from "./site/SiteBestellenPage";
 import { SiteContactPage } from "./site/SiteContactPage";
+import { SiteDeclineEmailPage } from "./site/SiteDeclineEmailPage";
 import { WorkshopsAdminPage } from "./site/WorkshopsAdminPage";
 import { WorkshopForm } from "./site/WorkshopForm";
 
@@ -49,6 +50,7 @@ export function AdminApp() {
                   <Route path="site/workshops/new" element={<WorkshopForm />} />
                   <Route path="site/workshops/:id/edit" element={<WorkshopForm />} />
                   <Route path="site/contact" element={<SiteContactPage />} />
+                  <Route path="site/decline-email" element={<SiteDeclineEmailPage />} />
                   <Route path="account" element={<AccountPage />} />
                 </Routes>
               </AdminLayout>

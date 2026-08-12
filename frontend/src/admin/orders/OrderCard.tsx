@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ALLERGENS } from "../../lib/data";
 import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
@@ -43,6 +44,8 @@ type OrderCardProps = {
   onDelete?: (order: Order) => void;
   onTogglePaid?: (invoice: Invoice, paid: boolean) => void;
   onResendInvoice?: (order: Order) => void;
+  /** Briefly highlighted — e.g. just jumped here from the Kalender "Bekijk in kalender" link. */
+  highlighted?: boolean;
 };
 
 type FieldKey =
@@ -261,6 +264,7 @@ export function OrderCard({
   onDelete,
   onTogglePaid,
   onResendInvoice,
+  highlighted = false,
 }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [price, setPrice] = useState(order.price === null ? "" : String(order.price));
@@ -455,7 +459,12 @@ export function OrderCard({
   if (order.price !== null) summaryParts.push(`${formatPriceEUR(order.price)} EUR`);
 
   return (
-    <div className="rounded-2xl border border-cacao/10 bg-cream-dark p-4 text-sm">
+    <div
+      id={`order-${order.id}`}
+      className={`rounded-2xl border p-4 text-sm transition-colors ${
+        highlighted ? "border-cherry bg-cherry/10" : "border-cacao/10 bg-cream-dark"
+      }`}
+    >
       {declineModalOpen && (
         <DeclineOrderModal
           customerName={order.customer_name}
@@ -652,6 +661,12 @@ export function OrderCard({
 
           {!readOnly && order.status === "pending" && (
             <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
+              <Link
+                to={`/admin/calendar?date=${order.pickup_date}`}
+                className="inline-block text-xs font-medium text-cacao-soft underline decoration-dotted hover:text-cherry"
+              >
+                Bekijk in kalender — past dit op {order.pickup_date}?
+              </Link>
               <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                 Prijs (EUR) — vereist om te accepteren
                 <input

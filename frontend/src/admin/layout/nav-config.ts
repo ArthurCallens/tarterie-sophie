@@ -19,4 +19,8 @@ export const ADMIN_NAV_GROUPS = [
       { label: "Contact", to: "/admin/site/contact" },
     ],
   },
+  {
+    heading: "E-mails",
+    items: [{ label: "Weigeringsmail", to: "/admin/site/decline-email" }],
+  },
 ];

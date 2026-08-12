@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { OrderCard } from "./OrderCard";
 import { useOrders } from "./useOrders";
 
@@ -22,6 +24,30 @@ export function OrdersPage() {
     resendOrderInvoice,
   } = useOrders();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = searchParams.get("focus");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  // Jump straight to a specific order — e.g. from the Kalender "wachtend"
+  // list — scroll it into view and briefly highlight it, then clear the
+  // param so a page refresh doesn't keep re-triggering it.
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const el = document.getElementById(`order-${focusId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(focusId);
+      const timer = setTimeout(() => setHighlightedId(null), 2500);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("focus");
+        return next;
+      });
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, loading]);
+
   return (
     <div>
       <h1 className="font-display text-2xl font-semibold text-cacao">Bestellingen</h1>
@@ -42,6 +68,7 @@ export function OrdersPage() {
                   onAccept={accept}
                   onDecline={declineWithReason}
                   onSaveFields={saveFields}
+                  highlighted={highlightedId === order.id}
                 />
               ))}
             </div>
@@ -64,6 +91,7 @@ export function OrdersPage() {
                   onDecline={declineWithReason}
                   onTogglePaid={togglePaid}
                   onResendInvoice={resendOrderInvoice}
+                  highlighted={highlightedId === order.id}
                 />
               ))}
             </div>
@@ -80,6 +108,7 @@ export function OrdersPage() {
                   invoice={invoicesByOrderId.get(order.id)}
                   onRestore={restore}
                   onDelete={remove}
+                  highlighted={highlightedId === order.id}
                 />
               ))}
             </div>

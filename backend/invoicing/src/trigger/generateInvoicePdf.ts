@@ -94,8 +94,23 @@ export const generateInvoicePdf = task({
     const active: InvoiceRow | null = activeData;
     const currentFields = snapshotFields(order);
 
-    // No invoice yet at all — issue the first one.
+    // No active invoice — either this order has never been invoiced, or its
+    // previous invoice was superseded by a decline/cancel (supersedeInvoice()
+    // in useOrders.ts) and it's now being re-accepted. In the latter case,
+    // link the new invoice to the one it replaces so the "this replaces
+    // invoice X, which is no longer valid" email copy in sendInvoiceEmail.ts
+    // fires correctly — otherwise a re-accepted order silently looks like a
+    // brand-new, first-time invoice to the customer.
     if (!active) {
+      const { data: lastSuperseded } = await supabaseAdmin
+        .from("invoices")
+        .select("id")
+        .eq("order_id", orderId)
+        .eq("status", "superseded")
+        .order("superseded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const invoiceNumber = await nextInvoiceNumber();
       const paymentReference = buildStructuredCommunication(invoiceNumberToBase10(invoiceNumber));
       const pdfStoragePath = await renderAndUpload(order, invoiceNumber, paymentReference);
@@ -107,12 +122,17 @@ export const generateInvoicePdf = task({
           pdf_storage_path: pdfStoragePath,
           payment_reference: paymentReference,
           status: "pending",
+          replaces_invoice_id: lastSuperseded?.id ?? null,
           snapshot: currentFields,
         })
         .select()
         .single();
       if (insertError) throw new Error(`Kon factuur niet opslaan: ${insertError.message}`);
-      logger.log("First invoice generated", { orderId, invoiceNumber });
+      logger.log(lastSuperseded ? "Invoice re-issued after cancel/decline" : "First invoice generated", {
+        orderId,
+        invoiceNumber,
+        replacesInvoiceId: lastSuperseded?.id ?? null,
+      });
       return { invoiceId: invoiceRowData.id, invoiceNumber, isNew: true, alreadyCurrent: false };
     }
 

@@ -5,7 +5,6 @@ import { FloatingTreat } from "../components/motion/FloatingTreat";
 import { Button } from "../components/ui/Button";
 import { CakeCard } from "../components/ui/CakeCard";
 import { Divider, PageBanner } from "../components/ui/Divider";
-import { OrderTicketForm } from "../components/ui/OrderTicketForm";
 import { ALLERGENS } from "../lib/data";
 import { formatPriceEUR } from "../lib/supabase/format";
 import { getCustomCakeOffer } from "../lib/supabase/customCake";
@@ -42,8 +41,6 @@ export function Bestellen() {
     };
   }, []);
 
-  const allProducts = [...classics, ...smallPastries];
-
   return (
     <>
       <PageBanner
@@ -53,12 +50,12 @@ export function Bestellen() {
       />
 
       <div className="-mt-4 flex justify-center pb-4">
-        <Button href="#bestelformulier">Bestel meteen je taart</Button>
+        <Button to="/bestellen/bestelbon">Bestel een taart</Button>
       </div>
 
       {/* Steps */}
       <section className="mx-auto max-w-5xl px-5 pb-20 sm:px-8">
-        <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, i) => (
             <Reveal key={step.id} delay={i * 0.06}>
               <div className="h-full rounded-2xl border border-cacao/10 p-6">
@@ -166,14 +163,27 @@ export function Bestellen() {
                 </p>
                 <p className="mt-3 text-cacao-soft">{customCake.detail}</p>
                 <p className="mt-5 font-semibold text-cacao">Mogelijke vullingen zijn:</p>
-                <ul className="mt-3 max-h-72 columns-1 gap-x-4 overflow-y-auto text-sm text-cacao-soft sm:columns-2">
-                  {customCake.fillings.map((filling) => (
-                    <li key={filling} className="mb-2 flex gap-2 break-inside-avoid">
-                      <span className="shrink-0 text-cherry">•</span>
-                      {filling}
-                    </li>
-                  ))}
-                </ul>
+                {(() => {
+                  const fillings = customCake.fillings.filter((f) => f.trim() !== "");
+                  const left = fillings.filter((_, i) => i % 2 === 0);
+                  const right = fillings.filter((_, i) => i % 2 === 1);
+                  const column = (items: string[]) => (
+                    <ul className="text-sm text-cacao-soft">
+                      {items.map((filling) => (
+                        <li key={filling} className="mb-2 flex gap-2">
+                          <span className="shrink-0 text-cherry">•</span>
+                          {filling}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                  return (
+                    <div className="mt-3 grid max-h-72 grid-cols-1 gap-x-4 overflow-y-auto sm:grid-cols-2">
+                      {column(left)}
+                      {column(right)}
+                    </div>
+                  );
+                })()}
               </div>
             </Reveal>
           </div>
@@ -194,10 +204,18 @@ export function Bestellen() {
         </Reveal>
       </section>
 
-      {/* Order form */}
-      <section id="bestelformulier" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-20 sm:px-8">
+      {/* Closing CTA */}
+      <section className="mx-auto max-w-3xl px-5 pb-20 pt-16 text-center sm:px-8">
         <Reveal>
-          <OrderTicketForm products={allProducts} />
+          <h2 className="font-display text-2xl font-semibold text-cacao sm:text-3xl">
+            Klaar om te bestellen?
+          </h2>
+          <p className="mt-3 text-cacao-soft">
+            Vul de bestelbon in en Sophie neemt binnen de 3 dagen contact met je op.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <Button to="/bestellen/bestelbon">Bestel een taart</Button>
+          </div>
         </Reveal>
       </section>
     </>

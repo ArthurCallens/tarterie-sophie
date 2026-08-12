@@ -77,7 +77,7 @@ export function Workshops() {
 
         <div className="flex flex-col gap-16">
           {workshops.map((workshop) => (
-            <Reveal key={workshop.id} className="grid gap-10 md:grid-cols-2 md:items-center">
+            <Reveal key={workshop.id} className="grid grid-cols-1 gap-10 md:grid-cols-2 md:items-center">
               <div className="relative pt-4">
                 {workshop.price !== null && (
                   <div className="absolute -right-3 top-0 z-10">

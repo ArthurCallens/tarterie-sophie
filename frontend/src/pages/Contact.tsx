@@ -17,7 +17,7 @@ export function Contact() {
 
       <section className="relative mx-auto max-w-5xl px-5 pb-24 sm:px-8">
         <FloatingTreat variant="macaron" className="-left-10 bottom-24 hidden xl:block" delay={0.1} />
-        <div className="grid gap-10 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
           <Reveal className="flex flex-col gap-6">
             {contact && (
               <>

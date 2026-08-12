@@ -8,6 +8,7 @@ import { ContactContentProvider } from "./lib/site-content-context";
 import { Home } from "./pages/Home";
 import { OverMij } from "./pages/OverMij";
 import { Bestellen } from "./pages/Bestellen";
+import { Bestelbon } from "./pages/Bestelbon";
 import { Workshops } from "./pages/Workshops";
 import { Contact } from "./pages/Contact";
 
@@ -34,6 +35,7 @@ function AnimatedRoutes() {
         <Route path="/" element={<PageTransition><Home /></PageTransition>} />
         <Route path="/over-mij" element={<PageTransition><OverMij /></PageTransition>} />
         <Route path="/bestellen" element={<PageTransition><Bestellen /></PageTransition>} />
+        <Route path="/bestellen/bestelbon" element={<PageTransition><Bestelbon /></PageTransition>} />
         <Route path="/workshops" element={<PageTransition><Workshops /></PageTransition>} />
         <Route path="/contact" element={<PageTransition><Contact /></PageTransition>} />
       </Routes>

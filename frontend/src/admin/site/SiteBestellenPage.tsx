@@ -6,8 +6,8 @@ import { OrderStepsEditor } from "./OrderStepsEditor";
 import { usePageContent } from "./usePageContent";
 
 const FALLBACK: BestellenContent = {
-  bannerEyebrow: "Zo werkt het",
-  bannerTitle: "Een taart bestellen?",
+  bannerEyebrow: "Info",
+  bannerTitle: "Zo werkt het",
   bannerIntro: "Van eerste berichtje tot afhaalmoment — hier lees je hoe een bestelling bij Tarterie Sophie verloopt.",
 };
 

@@ -61,7 +61,7 @@ export function Home() {
             <p className="mt-3 font-script text-3xl text-cherry sm:text-4xl">Life is short, make it sweet.</p>
             <p className="mt-6 max-w-md text-lg text-cacao-soft">{content?.heroSubtext}</p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <Button to="/bestellen">Bestel een taart</Button>
+              <Button to="/bestellen/bestelbon">Bestel een taart</Button>
               <Button to="/over-mij" variant="outline">
                 Ontdek mijn verhaal
               </Button>

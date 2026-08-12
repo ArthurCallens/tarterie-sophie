@@ -2,10 +2,32 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { BUSINESS } from "../config/business.js";
 import { sendOutlookWithAttachment } from "../lib/composio.js";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { renderEmailTemplate } from "../lib/emailTemplate.js";
 import type { OrderRow } from "../lib/types.js";
 
 type SendDeclineEmailPayload = {
   orderId: string;
+};
+
+type DeclineEmailContent = {
+  subject: string;
+  body: string;
+};
+
+/** Used until Sophie saves her own template on /admin/site/decline-email — same copy the code sent before this became editable. */
+const DEFAULT_DECLINE_EMAIL: DeclineEmailContent = {
+  subject: "Je bestelling bij {{bedrijfsnaam}}",
+  body: [
+    "Beste {{naam}},",
+    "",
+    "Helaas kunnen we je bestelling bij {{bedrijfsnaam}} niet uitvoeren.",
+    "",
+    "{{reden}}",
+    "",
+    "Excuses voor het ongemak. Heb je vragen, antwoord gerust op deze e-mail.",
+    "",
+    "{{eigenaar}}",
+  ].join("\n"),
 };
 
 /**
@@ -34,22 +56,24 @@ export const sendDeclineEmail = task({
       return { sent: false as const };
     }
 
-    const body = [
-      `Beste ${order.customer_name},`,
-      "",
-      `Helaas kunnen we je bestelling bij ${BUSINESS.name} niet uitvoeren.`,
-      "",
-      order.decline_reason,
-      "",
-      "Excuses voor het ongemak. Heb je vragen, antwoord gerust op deze e-mail.",
-      "",
-      BUSINESS.ownerName,
-    ].join("\n");
+    const { data: templateRow } = await supabaseAdmin
+      .from("page_content")
+      .select("content")
+      .eq("page_key", "decline_email")
+      .maybeSingle();
+    const template = (templateRow?.content as DeclineEmailContent | undefined) ?? DEFAULT_DECLINE_EMAIL;
+
+    const vars = {
+      naam: order.customer_name,
+      reden: order.decline_reason ?? "",
+      bedrijfsnaam: BUSINESS.name,
+      eigenaar: BUSINESS.ownerName,
+    };
 
     await sendOutlookWithAttachment({
       to: order.customer_email,
-      subject: `Je bestelling bij ${BUSINESS.name}`,
-      body,
+      subject: renderEmailTemplate(template.subject, vars),
+      body: renderEmailTemplate(template.body, vars),
     });
 
     const { error: updateError } = await supabaseAdmin

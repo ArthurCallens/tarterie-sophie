@@ -5,7 +5,7 @@ export const SITE = {
 
 export const NAV_LINKS = [
   { label: "Home", to: "/" },
-  { label: "Een taart bestellen?", to: "/bestellen" },
+  { label: "Zo werkt het", to: "/bestellen" },
   { label: "Over mij", to: "/over-mij" },
   { label: "Workshops", to: "/workshops" },
   { label: "Contact", to: "/contact" },
