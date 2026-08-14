@@ -21,7 +21,6 @@ const EMPTY_INPUT: ProductInput = {
   price: 0,
   category: "klassieker",
   allergens: [],
-  in_stock: true,
   active: true,
   featured: false,
   sort_order: 0,
@@ -50,7 +49,6 @@ export function ProductForm() {
           price: p.price,
           category: p.category,
           allergens: p.allergens,
-          in_stock: p.in_stock,
           active: p.active,
           featured: p.featured,
           sort_order: p.sort_order,
@@ -199,14 +197,6 @@ export function ProductForm() {
         </fieldset>
 
         <div className="flex flex-wrap gap-6">
-          <label className="flex items-center gap-2 text-sm font-medium text-cacao">
-            <input
-              type="checkbox"
-              checked={input.in_stock}
-              onChange={(e) => setInput({ ...input, in_stock: e.target.checked })}
-            />
-            Op voorraad
-          </label>
           <label className="flex items-center gap-2 text-sm font-medium text-cacao">
             <input
               type="checkbox"

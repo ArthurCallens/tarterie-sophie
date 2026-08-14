@@ -138,7 +138,6 @@ export type Product = {
   price: number;
   category: ProductCategory;
   allergens: string[];
-  in_stock: boolean;
   active: boolean;
   featured: boolean;
   sort_order: number;
@@ -153,7 +152,6 @@ export type ProductInput = {
   price: number;
   category: ProductCategory;
   allergens: string[];
-  in_stock: boolean;
   active: boolean;
   featured: boolean;
   sort_order: number;

@@ -29,9 +29,9 @@ function describeSelection(selection: Selection): string {
 }
 
 function toOrderItem(id: string, selection: Selection): OrderItem {
-  // Guards against a not-yet-blurred, momentarily-empty (0) quantity field
-  // ever reaching submission — commitQty normally handles this on blur, but
-  // never trust that alone for what gets sent to the server.
+  // Last-resort safety net only — handleSubmit already blocks submission
+  // entirely while any selected item has qty 0, so this should never
+  // actually see a 0 in practice.
   const quantity = selection.qty || 1;
   return {
     id,
@@ -90,21 +90,21 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   /**
    * Accepts the raw input string, not a pre-parsed number — an empty field
    * (mid-edit, e.g. after backspacing a single digit to type a new number)
-   * has to be representable as 0 here, not silently snapped back to 1 on
-   * every keystroke, or the field becomes impossible to clear.
-   * `commitQty` (on blur) is what actually enforces the minimum of 1.
+   * has to be representable as 0 here. Unlike a first attempt at this, there
+   * is deliberately no auto-default back to 1 anywhere (not even on blur):
+   * a left-empty quantity is a real error state now, caught at submit time
+   * with a message telling the customer to fill it in or remove that item —
+   * silently "fixing" it to 1 would let a customer accidentally order
+   * something they didn't mean to.
    */
   function setQty(id: string, raw: string) {
-    const parsed = raw === "" ? 0 : Number(raw);
-    if (Number.isNaN(parsed) || parsed < 0) return;
+    const digitsOnly = raw.replace(/[^0-9]/g, "");
+    const parsed = digitsOnly === "" ? 0 : Number(digitsOnly);
     setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: parsed } } : prev));
   }
 
-  function commitQty(id: string) {
-    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: prev[id].qty || 1 } } : prev));
-  }
-
   const selectedIds = Object.keys(selections);
+  const emptyQtySelections = selectedIds.filter((id) => selections[id].qty === 0);
   const classics = products.filter((p) => p.category === "klassieker");
   const smallPastries = products.filter((p) => p.category === "klein-gebak");
   const items = selectedIds.map((id) => toOrderItem(id, selections[id]));
@@ -120,6 +120,11 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     if (isSubmitting) return;
     if (selectedIds.length === 0) {
       setSubmitError("Kies minstens één taart.");
+      return;
+    }
+    if (emptyQtySelections.length > 0) {
+      const names = emptyQtySelections.map((id) => selections[id].label).join(", ");
+      setSubmitError(`Vul een aantal in voor ${names}, of verwijder deze taart/taarten uit je bestelling.`);
       return;
     }
     setIsSubmitting(true);
@@ -285,13 +290,14 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
               <label className="flex items-center gap-2 border-t border-cherry/20 bg-cream px-4 py-2.5 text-sm font-medium text-cacao">
                 Voor hoeveel personen?
                 <input
-                  type="number"
-                  min={1}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={selections[CUSTOM_CAKE_ID].qty === 0 ? "" : selections[CUSTOM_CAKE_ID].qty}
                   onClick={(e) => e.stopPropagation()}
                   onFocus={selectOnFocus}
                   onChange={(e) => setQty(CUSTOM_CAKE_ID, e.target.value)}
-                  onBlur={() => commitQty(CUSTOM_CAKE_ID)}
+                  placeholder="0"
                   className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
                 />
               </label>
@@ -311,7 +317,6 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                     selection={selections[product.id]}
                     onToggle={() => toggleSelection(product.id, product.name, "klassieker", product.price)}
                     onQtyChange={(value) => setQty(product.id, value)}
-                    onQtyBlur={() => commitQty(product.id)}
                   />
                 ))}
               </div>
@@ -333,7 +338,6 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                     selection={selections[product.id]}
                     onToggle={() => toggleSelection(product.id, product.name, "klein-gebak", product.price)}
                     onQtyChange={(value) => setQty(product.id, value)}
-                    onQtyBlur={() => commitQty(product.id)}
                   />
                 ))}
               </div>
@@ -442,7 +446,6 @@ function CakeChoiceCard({
   selection,
   onToggle,
   onQtyChange,
-  onQtyBlur,
 }: {
   product: Product;
   priceSuffix: string;
@@ -450,7 +453,6 @@ function CakeChoiceCard({
   selection?: Selection;
   onToggle: () => void;
   onQtyChange: (value: string) => void;
-  onQtyBlur: () => void;
 }) {
   const image = product.images[0];
   const active = Boolean(selection);
@@ -490,13 +492,14 @@ function CakeChoiceCard({
         <label className="flex flex-col gap-1 border-t border-cherry/20 px-2.5 py-2 text-xs font-medium text-cacao">
           {unitLabel}
           <input
-            type="number"
-            min={1}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={selection.qty === 0 ? "" : selection.qty}
             onClick={(e) => e.stopPropagation()}
             onFocus={selectOnFocus}
             onChange={(e) => onQtyChange(e.target.value)}
-            onBlur={onQtyBlur}
+            placeholder="0"
             className="w-full rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
           />
         </label>

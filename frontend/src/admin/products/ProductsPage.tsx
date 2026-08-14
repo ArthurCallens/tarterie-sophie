@@ -50,7 +50,6 @@ export function ProductsPage() {
                 <th className="px-4 py-3 font-medium">Naam</th>
                 <th className="px-4 py-3 font-medium">Categorie</th>
                 <th className="px-4 py-3 font-medium">Prijs</th>
-                <th className="px-4 py-3 font-medium">Voorraad</th>
                 <th className="px-4 py-3 font-medium">Actief</th>
                 <th className="px-4 py-3 font-medium">Uitgelicht</th>
                 <th className="px-4 py-3 font-medium">Acties</th>
@@ -73,11 +72,6 @@ export function ProductsPage() {
                   <td className="px-4 py-3 font-medium text-cacao">{product.name}</td>
                   <td className="px-4 py-3 text-cacao-soft">{CATEGORY_LABEL[product.category] ?? product.category}</td>
                   <td className="px-4 py-3 text-cacao-soft">{formatPriceEUR(product.price)} EUR</td>
-                  <td className="px-4 py-3">
-                    <span className={product.in_stock ? "text-cacao-soft" : "text-cherry"}>
-                      {product.in_stock ? "Op voorraad" : "Niet op voorraad"}
-                    </span>
-                  </td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
