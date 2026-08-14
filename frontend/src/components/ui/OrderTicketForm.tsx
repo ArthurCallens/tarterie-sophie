@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { ALLERGENS } from "../../lib/data";
-import type { CustomCakeOffer, Product } from "../../lib/supabase/types";
+import type { CustomCakeOffer, OrderItem, OrderItemCategory, Product } from "../../lib/supabase/types";
 import { formatPriceEUR } from "../../lib/supabase/format";
 import { Button } from "./Button";
 import { SuccessBurst } from "../motion/SuccessBurst";
@@ -15,18 +15,28 @@ type OrderTicketFormProps = {
 const CUSTOM_CAKE_ID = "custom";
 const CUSTOM_CAKE_LABEL = "Gepersonaliseerde themataart (op maat)";
 
-type Unit = "personen" | "stuks";
-
 type Selection = {
+  category: OrderItemCategory;
   label: string;
-  unit: Unit;
   qty: number;
+  unitPrice: number;
 };
 
 function describeSelection(selection: Selection): string {
-  return selection.unit === "stuks"
-    ? `${selection.label} (${selection.qty} stuks)`
-    : `${selection.label} (voor ${selection.qty} personen)`;
+  if (selection.category === "klassieker") return `${selection.qty}x ${selection.label} (taart voor 8 pers.)`;
+  if (selection.category === "klein-gebak") return `${selection.label} (${selection.qty} stuks)`;
+  return `${selection.label} (voor ${selection.qty} personen)`;
+}
+
+function toOrderItem(id: string, selection: Selection): OrderItem {
+  return {
+    id,
+    category: selection.category,
+    label: selection.label,
+    quantity: selection.qty,
+    unitPrice: selection.unitPrice,
+    lineTotal: selection.qty * selection.unitPrice,
+  };
 }
 
 export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) {
@@ -40,13 +50,13 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     setAllergenChoices((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
   }
 
-  function toggleSelection(id: string, label: string, unit: Unit) {
+  function toggleSelection(id: string, label: string, category: OrderItemCategory, unitPrice: number) {
     setSelections((prev) => {
       if (prev[id]) {
         const { [id]: _removed, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [id]: { label, unit, qty: 1 } };
+      return { ...prev, [id]: { label, category, unitPrice, qty: 1 } };
     });
   }
 
@@ -57,6 +67,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const selectedIds = Object.keys(selections);
   const classics = products.filter((p) => p.category === "klassieker");
   const smallPastries = products.filter((p) => p.category === "klein-gebak");
+  const items = selectedIds.map((id) => toOrderItem(id, selections[id]));
+  const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,6 +97,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         pickup_date: String(form.get("pickupDate") || ""),
         message: String(form.get("message") || "") || null,
         reference_photo_url: referencePhotoUrl,
+        items,
+        price: total,
       });
       setSubmitted(true);
     } catch (error) {
@@ -207,7 +221,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
               type="button"
               whileHover={{ scale: 1.005 }}
               whileTap={{ scale: 0.995 }}
-              onClick={() => toggleSelection(CUSTOM_CAKE_ID, CUSTOM_CAKE_LABEL, "personen")}
+              onClick={() => toggleSelection(CUSTOM_CAKE_ID, CUSTOM_CAKE_LABEL, "custom", customCake?.price ?? 0)}
               aria-pressed={Boolean(selections[CUSTOM_CAKE_ID])}
               className="flex w-full items-stretch gap-4 text-left"
             >
@@ -257,10 +271,10 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                   <CakeChoiceCard
                     key={product.id}
                     product={product}
-                    unit="personen"
-                    unitLabel="Voor hoeveel personen?"
+                    priceSuffix="/ taart (8 pers.)"
+                    unitLabel="Aantal taarten? (telkens voor 8 personen)"
                     selection={selections[product.id]}
-                    onToggle={() => toggleSelection(product.id, product.name, "personen")}
+                    onToggle={() => toggleSelection(product.id, product.name, "klassieker", product.price)}
                     onQtyChange={(qty) => setQty(product.id, qty)}
                   />
                 ))}
@@ -278,15 +292,22 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                   <CakeChoiceCard
                     key={product.id}
                     product={product}
-                    unit="stuks"
+                    priceSuffix="/ stuk"
                     unitLabel="Aantal stuks?"
                     selection={selections[product.id]}
-                    onToggle={() => toggleSelection(product.id, product.name, "stuks")}
+                    onToggle={() => toggleSelection(product.id, product.name, "klein-gebak", product.price)}
                     onQtyChange={(qty) => setQty(product.id, qty)}
                   />
                 ))}
               </div>
             </>
+          )}
+
+          {items.length > 0 && (
+            <div className="mt-5 flex items-center justify-between rounded-xl bg-cream-dark px-4 py-3">
+              <span className="text-sm font-medium text-cacao">Geschatte totaalprijs</span>
+              <span className="font-display text-lg text-cherry">{formatPriceEUR(total)} EUR</span>
+            </div>
           )}
         </fieldset>
 
@@ -371,14 +392,14 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
 
 function CakeChoiceCard({
   product,
-  unit,
+  priceSuffix,
   unitLabel,
   selection,
   onToggle,
   onQtyChange,
 }: {
   product: Product;
-  unit: Unit;
+  priceSuffix: string;
   unitLabel: string;
   selection?: Selection;
   onToggle: () => void;
@@ -413,7 +434,9 @@ function CakeChoiceCard({
         )}
         <div className="px-2.5 py-2">
           <p className="font-display text-sm leading-tight text-cacao">{product.name}</p>
-          <p className="mt-0.5 font-display text-xs text-cherry">{formatPriceEUR(product.price)} EUR</p>
+          <p className="mt-0.5 font-display text-xs text-cherry">
+            {formatPriceEUR(product.price)} EUR {priceSuffix}
+          </p>
         </div>
       </motion.button>
       {active && selection && (
@@ -427,7 +450,6 @@ function CakeChoiceCard({
             onChange={(e) => onQtyChange(Number(e.target.value))}
             className="w-full rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
           />
-          <span className="sr-only">{unit}</span>
         </label>
       )}
     </div>

@@ -22,6 +22,7 @@ export function invoiceRelevantFields(order: Order): InvoiceSnapshot {
     servings: order.servings,
     flavor: order.flavor,
     pickup_date: order.pickup_date,
+    items: order.items,
   };
 }
 
@@ -37,7 +38,8 @@ export function isInvoiceStale(order: Order, activeInvoice: Invoice | null | und
     current.occasion !== snapshot.occasion ||
     current.servings !== snapshot.servings ||
     current.flavor !== snapshot.flavor ||
-    current.pickup_date !== snapshot.pickup_date
+    current.pickup_date !== snapshot.pickup_date ||
+    JSON.stringify(current.items) !== JSON.stringify(snapshot.items)
   );
 }
 

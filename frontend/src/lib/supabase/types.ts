@@ -188,6 +188,26 @@ export type CustomCakeOfferInput = {
 
 export type OrderStatus = "pending" | "accepted" | "declined" | "archived";
 
+export type OrderItemCategory = "klassieker" | "klein-gebak" | "custom";
+
+/**
+ * One line of an order — a cake/pastry choice with its own quantity and
+ * price, so the total can be calculated automatically instead of typed in
+ * by hand. `quantity` means a different thing per category: number of
+ * whole cakes for a klassieker (always baked for 8 people), number of
+ * pieces for klein gebak, number of people for the personalised cake.
+ * `unitPrice`/`lineTotal` stay editable per item on the dashboard (see
+ * OrderCard.tsx) even after the customer submits.
+ */
+export type OrderItem = {
+  id: string;
+  category: OrderItemCategory;
+  label: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
 export type Order = {
   id: string;
   status: OrderStatus;
@@ -202,6 +222,7 @@ export type Order = {
   message: string | null;
   reference_photo_url: string | null;
   price: number | null;
+  items: OrderItem[];
   notes: string | null;
   // Sophie removed this order's income from the Boekhouding ledger (e.g. it
   // was entered with a wrong price) — the order itself is untouched, still
@@ -242,6 +263,9 @@ export type OrderInput = {
   pickup_date: string;
   message: string | null;
   reference_photo_url: string | null;
+  items: OrderItem[];
+  /** Auto-computed sum of the items' line totals at submission time — a starting suggestion, not binding; Sophie reviews/adjusts before accepting. */
+  price: number;
 };
 
 export type InvoiceStatus = "pending" | "sent" | "failed" | "superseded";
@@ -255,6 +279,7 @@ export type InvoiceSnapshot = {
   servings: number;
   flavor: string;
   pickup_date: string;
+  items: OrderItem[];
 };
 
 /** Mirrors the `invoices` table (managed mostly by the tarterie-invoicing trigger.dev project). */
@@ -337,7 +362,7 @@ export type LedgerEntry = {
   paid: boolean | null;
 };
 
-/** Fields Sophie can edit on a pending order before accepting it. */
+/** Fields Sophie can edit on a pending or accepted order. */
 export type OrderEditableFields = {
   customer_name: string;
   customer_email: string;
@@ -348,6 +373,7 @@ export type OrderEditableFields = {
   allergens: string[];
   pickup_date: string;
   message: string | null;
+  items: OrderItem[];
 };
 
 /** What Sophie writes (or explicitly skips) when declining an order. */

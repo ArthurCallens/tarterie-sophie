@@ -27,6 +27,7 @@ function snapshotFields(order: OrderRow): InvoiceSnapshot {
     servings: order.servings,
     flavor: order.flavor,
     pickup_date: order.pickup_date,
+    items: order.items,
   };
 }
 
@@ -38,7 +39,8 @@ function snapshotsEqual(a: InvoiceSnapshot, b: InvoiceSnapshot): boolean {
     a.occasion === b.occasion &&
     a.servings === b.servings &&
     a.flavor === b.flavor &&
-    a.pickup_date === b.pickup_date
+    a.pickup_date === b.pickup_date &&
+    JSON.stringify(a.items) === JSON.stringify(b.items)
   );
 }
 

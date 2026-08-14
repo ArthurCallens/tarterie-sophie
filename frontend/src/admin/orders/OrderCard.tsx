@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ALLERGENS } from "../../lib/data";
 import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
-import type { Invoice, Order, OrderDeclineFields, OrderEditableFields } from "../../lib/supabase/types";
+import type { Invoice, Order, OrderDeclineFields, OrderEditableFields, OrderItem } from "../../lib/supabase/types";
 import { DeclineOrderModal } from "./DeclineOrderModal";
 import type { SupersededInvoice } from "./useOrders";
 
@@ -236,6 +236,63 @@ function AllergensField({
   );
 }
 
+function itemUnitLabel(category: OrderItem["category"]): string {
+  if (category === "klassieker") return "taart(en)";
+  if (category === "klein-gebak") return "stuk(s)";
+  return "pers.";
+}
+
+/**
+ * Editable breakdown of what was actually ordered — the total price is
+ * calculated from these (quantity × unit price per line), not typed in as
+ * one flat number. Every line stays editable here, including the
+ * personalised cake's, so Sophie can correct a quantity or bump a price
+ * per item without losing the automatic calculation for everything else.
+ */
+function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (items: OrderItem[]) => void }) {
+  function updateItem(id: string, patch: Partial<Pick<OrderItem, "quantity" | "unitPrice">>) {
+    onChange(
+      items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-cacao">Bestelde items</span>
+      <div className="flex flex-col gap-2 rounded-lg bg-cream px-3 py-2">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-cacao/10 pb-2 last:border-0 last:pb-0"
+          >
+            <span className="min-w-0 flex-1 basis-full text-cacao sm:basis-auto">{item.label}</span>
+            <input
+              type="number"
+              min={1}
+              value={item.quantity}
+              onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+              className="w-14 rounded-md border border-cacao/15 bg-cream px-1.5 py-1 text-center text-cacao focus:border-cherry"
+            />
+            <span className="text-[11px] text-cacao-soft/70">{itemUnitLabel(item.category)} à</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={item.unitPrice}
+              onChange={(e) => updateItem(item.id, { unitPrice: Math.max(0, Number(e.target.value) || 0) })}
+              className="w-20 rounded-md border border-cacao/15 bg-cream px-1.5 py-1 text-cacao focus:border-cherry"
+            />
+            <span className="text-[11px] text-cacao-soft/70">EUR</span>
+            <span className="ml-auto shrink-0 font-medium text-cacao">
+              {formatPriceEUR(item.quantity * item.unitPrice)} EUR
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function declineEmailStatusLabel(status: Order["decline_email_status"]): string {
   switch (status) {
     case "sent":
@@ -294,8 +351,16 @@ export function OrderCard({
   const [allergens, setAllergens] = useState<string[]>(order.allergens);
   const [pickupDate, setPickupDate] = useState(order.pickup_date);
   const [message, setMessage] = useState(order.message ?? "");
+  const [items, setItems] = useState<OrderItem[]>(order.items ?? []);
   const [unlocked, setUnlocked] = useState<Set<FieldKey>>(new Set());
   const isEditableStatus = !readOnly && (order.status === "pending" || order.status === "accepted");
+
+  const hasItems = items.length > 0;
+  const itemsTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  // The order's real price whenever it has structured items — the manual
+  // "Prijs (EUR)" input only remains the source of truth for orders placed
+  // before this shipped (empty items array).
+  const effectivePrice = hasItems ? itemsTotal : parsedPrice;
 
   function unlock(key: FieldKey) {
     setUnlocked((prev) => new Set(prev).add(key));
@@ -316,6 +381,7 @@ export function OrderCard({
       allergens,
       pickup_date: pickupDate,
       message: message.trim() === "" ? null : message,
+      items,
     };
   }
 
@@ -324,7 +390,7 @@ export function OrderCard({
   // half the change on the next real page load.
   async function flushEdits() {
     if (onSaveFields) await onSaveFields(order, currentFieldEdits());
-    if (onSaveDetails) await onSaveDetails(order, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
+    if (onSaveDetails) await onSaveDetails(order, { price: effectivePrice, notes: notes.trim() === "" ? null : notes });
   }
 
   /**
@@ -338,13 +404,14 @@ export function OrderCard({
     if (!invoice || invoice.status !== "sent") return false;
     const snap = invoice.snapshot;
     return (
-      parsedPrice !== snap.price ||
+      effectivePrice !== snap.price ||
       name !== snap.customer_name ||
       email !== snap.customer_email ||
       occasion !== snap.occasion ||
       (Number(servings) || 0) !== snap.servings ||
       flavor !== snap.flavor ||
-      pickupDate !== snap.pickup_date
+      pickupDate !== snap.pickup_date ||
+      JSON.stringify(items) !== JSON.stringify(snap.items)
     );
   }
 
@@ -374,21 +441,35 @@ export function OrderCard({
         const { order: latestOrder, onSaveFields: saveFieldsFn, onSaveDetails: saveDetailsFn } = latestRef.current;
         if (saveFieldsFn) await saveFieldsFn(latestOrder, currentFieldEdits());
         if (saveDetailsFn)
-          await saveDetailsFn(latestOrder, { price: parsedPrice, notes: notes.trim() === "" ? null : notes });
+          await saveDetailsFn(latestOrder, { price: effectivePrice, notes: notes.trim() === "" ? null : notes });
         setSaveStatus("saved");
       })();
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.status, name, email, phone, occasion, servings, flavor, allergens, pickupDate, message, price, notes]);
+  }, [
+    order.status,
+    name,
+    email,
+    phone,
+    occasion,
+    servings,
+    flavor,
+    allergens,
+    pickupDate,
+    message,
+    price,
+    notes,
+    items,
+  ]);
 
   async function handleAccept() {
-    if (parsedPrice === null || accepting) return;
+    if (effectivePrice === null || accepting) return;
     setAccepting(true);
     try {
       if (onSaveFields) await onSaveFields(order, currentFieldEdits());
       setUnlocked(new Set());
-      await onAccept?.(order, parsedPrice);
+      await onAccept?.(order, effectivePrice);
     } finally {
       setAccepting(false);
     }
@@ -435,10 +516,10 @@ export function OrderCard({
   }
 
   async function handleRestore() {
-    if (!onRestore || parsedPrice === null || restoring) return;
+    if (!onRestore || effectivePrice === null || restoring) return;
     setRestoring(true);
     try {
-      await onRestore(order, parsedPrice);
+      await onRestore(order, effectivePrice);
     } finally {
       setRestoring(false);
     }
@@ -667,22 +748,34 @@ export function OrderCard({
               >
                 Bekijk in kalender — past dit op {order.pickup_date}?
               </Link>
-              <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                Prijs (EUR) — vereist om te accepteren
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="Bv. 45"
-                  className={inputClass}
-                />
-              </label>
+              {hasItems ? (
+                <>
+                  <OrderItemsEditor items={items} onChange={setItems} />
+                  <p className="text-sm font-semibold text-cacao">
+                    Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>{" "}
+                    <span className="text-[11px] font-normal text-cacao-soft">
+                      (automatisch berekend — pas aan indien nodig)
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                  Prijs (EUR) — vereist om te accepteren
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="Bv. 45"
+                    className={inputClass}
+                  />
+                </label>
+              )}
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={parsedPrice === null || accepting}
+                  disabled={effectivePrice === null || accepting}
                   onClick={() => void handleAccept()}
                   className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -702,17 +795,26 @@ export function OrderCard({
 
           {!readOnly && order.status === "accepted" && (
             <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
-              <EditableField
-                label="Prijs (EUR)"
-                value={price}
-                original={price}
-                onChange={setPrice}
-                unlocked={unlocked.has("price")}
-                onUnlock={() => unlock("price")}
-                type="number"
-                min={0}
-                step="0.01"
-              />
+              {hasItems ? (
+                <>
+                  <OrderItemsEditor items={items} onChange={setItems} />
+                  <p className="text-sm font-semibold text-cacao">
+                    Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>
+                  </p>
+                </>
+              ) : (
+                <EditableField
+                  label="Prijs (EUR)"
+                  value={price}
+                  original={price}
+                  onChange={setPrice}
+                  unlocked={unlocked.has("price")}
+                  onUnlock={() => unlock("price")}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                />
+              )}
               <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                 Notities
                 <textarea
@@ -870,21 +972,30 @@ export function OrderCard({
                     verandert. Een geweigerde bestelling die opnieuw geaccepteerd wordt, krijgt altijd een eigen
                     factuurnummer.
                   </p>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                    Prijs (EUR) — vereist om te herstellen
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      placeholder="Bv. 45"
-                      className={inputClass}
-                    />
-                  </label>
+                  {hasItems ? (
+                    <>
+                      <OrderItemsEditor items={items} onChange={setItems} />
+                      <p className="text-sm font-semibold text-cacao">
+                        Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>
+                      </p>
+                    </>
+                  ) : (
+                    <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
+                      Prijs (EUR) — vereist om te herstellen
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="Bv. 45"
+                        className={inputClass}
+                      />
+                    </label>
+                  )}
                   <button
                     type="button"
-                    disabled={parsedPrice === null || restoring}
+                    disabled={effectivePrice === null || restoring}
                     onClick={() => void handleRestore()}
                     className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
                   >

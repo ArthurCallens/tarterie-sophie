@@ -1,3 +1,21 @@
+export type OrderItemCategory = "klassieker" | "klein-gebak" | "custom";
+
+/**
+ * One line of an order. `quantity` means a different thing per category:
+ * number of whole cakes for a klassieker (always baked for 8 people),
+ * number of pieces for klein gebak, number of people for the personalised
+ * cake — see frontend/src/lib/supabase/types.ts (same shape, duplicated —
+ * no shared package between the two projects).
+ */
+export type OrderItem = {
+  id: string;
+  category: OrderItemCategory;
+  label: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
 /** Mirrors the relevant columns of tarterie_sophie's `orders` table. */
 export type OrderRow = {
   id: string;
@@ -13,6 +31,7 @@ export type OrderRow = {
   message: string | null;
   reference_photo_url: string | null;
   price: number | null;
+  items: OrderItem[];
   notes: string | null;
   decline_reason: string | null;
   decline_notify: boolean;
@@ -30,6 +49,7 @@ export type InvoiceSnapshot = {
   servings: number;
   flavor: string;
   pickup_date: string;
+  items: OrderItem[];
 };
 
 /**

@@ -157,6 +157,11 @@ export function ProductForm() {
               onChange={(e) => setInput({ ...input, price: Number(e.target.value) })}
               className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
             />
+            <span className="text-xs font-normal text-cacao-soft">
+              {input.category === "klassieker"
+                ? "Prijs voor de volledige taart (telkens voor 8 personen)."
+                : "Prijs per stuk."}
+            </span>
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
