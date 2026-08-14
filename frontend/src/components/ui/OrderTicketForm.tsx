@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FocusEvent, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { ALLERGENS } from "../../lib/data";
 import type { CustomCakeOffer, OrderItem, OrderItemCategory, Product } from "../../lib/supabase/types";
@@ -39,12 +39,35 @@ function toOrderItem(id: string, selection: Selection): OrderItem {
   };
 }
 
+/**
+ * "Aantal gasten" isn't asked anymore — the person/cake/piece counts on
+ * each chosen item already say what's needed. This derives a rough
+ * headcount purely for internal record-keeping (admin summary line,
+ * legacy invoice fallback): custom cake counts by person, a klassieker by
+ * its fixed 8-person size; klein gebak pieces aren't really "people" so
+ * they don't contribute.
+ */
+function estimateServings(items: OrderItem[]): number {
+  const total = items.reduce((sum, item) => {
+    if (item.category === "custom") return sum + item.quantity;
+    if (item.category === "klassieker") return sum + item.quantity * 8;
+    return sum;
+  }, 0);
+  return Math.max(1, total);
+}
+
+/** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select();
+}
+
 export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [allergenChoices, setAllergenChoices] = useState<string[]>([]);
   const [selections, setSelections] = useState<Record<string, Selection>>({});
+  const [pickupDate, setPickupDate] = useState("");
 
   function toggleAllergen(id: string) {
     setAllergenChoices((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
@@ -70,6 +93,11 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const items = selectedIds.map((id) => toOrderItem(id, selections[id]));
   const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
+  const daysUntilPickup = pickupDate
+    ? Math.ceil((new Date(`${pickupDate}T00:00:00`).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const pickupSoonWarning = daysUntilPickup !== null && daysUntilPickup >= 0 && daysUntilPickup < 7;
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
@@ -91,7 +119,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         customer_email: String(form.get("email") || ""),
         customer_phone: String(form.get("phone") || ""),
         occasion: String(form.get("occasion") || ""),
-        servings: Number(form.get("servings") || 0),
+        servings: estimateServings(items),
         flavor: selectedIds.map((id) => describeSelection(selections[id])).join(", "),
         allergens: allergenChoices,
         pickup_date: String(form.get("pickupDate") || ""),
@@ -194,18 +222,6 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
           />
         </label>
 
-        <label className="flex flex-col gap-2 text-sm font-medium text-cacao sm:col-span-2">
-          Totaal aantal gasten
-          <input
-            name="servings"
-            required
-            type="number"
-            min={1}
-            placeholder="Bv. 12"
-            className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao placeholder:text-cacao-soft/60 focus:border-cherry sm:max-w-xs"
-          />
-        </label>
-
         <fieldset className="min-w-0 sm:col-span-2">
           <legend className="text-sm font-medium text-cacao">
             Gewenste taart <span className="font-normal text-cacao-soft">(kies één of meerdere)</span>
@@ -256,6 +272,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                   min={1}
                   value={selections[CUSTOM_CAKE_ID].qty}
                   onClick={(e) => e.stopPropagation()}
+                  onFocus={selectOnFocus}
                   onChange={(e) => setQty(CUSTOM_CAKE_ID, Number(e.target.value))}
                   className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
                 />
@@ -345,8 +362,16 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
             name="pickupDate"
             required
             type="date"
+            value={pickupDate}
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setPickupDate(e.target.value)}
             className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
           />
+          {pickupSoonWarning && (
+            <span className="text-xs font-medium text-cherry">
+              Dat is minder dan een week vanaf nu — dat lukt niet altijd. Sophie laat je zeker weten of het past.
+            </span>
+          )}
         </label>
 
         <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
@@ -374,7 +399,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
       </div>
 
       <p className="mt-6 text-sm text-cacao-soft">
-        Geef je bestelling liefst een 3-tal dagen op voorhand door — dat geeft mij de tijd om
+        Geef je bestelling liefst minstens een week op voorhand door — dat geeft mij de tijd om
         verse ingrediënten in huis te halen. Ik stuur snel een bevestiging naar jouw e-mailadres
         en we spreken een afhaalmoment af.
       </p>
@@ -447,6 +472,7 @@ function CakeChoiceCard({
             min={1}
             value={selection.qty}
             onClick={(e) => e.stopPropagation()}
+            onFocus={selectOnFocus}
             onChange={(e) => onQtyChange(Number(e.target.value))}
             className="w-full rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
           />

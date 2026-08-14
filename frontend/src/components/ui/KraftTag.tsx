@@ -4,12 +4,13 @@ import { useReducedMotion } from "../../lib/use-reduced-motion";
 
 type KraftTagProps = {
   price: string;
-  suffix?: string;
+  /** No default on purpose — every caller must say what the price is per (e.g. "/ taart", "/ stuk", "EUR / plaats"), never silently implied as per-person. */
+  suffix: string;
   rotate?: number;
   className?: string;
 };
 
-export function KraftTag({ price, suffix = "EUR/pp", rotate = -6, className }: KraftTagProps) {
+export function KraftTag({ price, suffix, rotate = -6, className }: KraftTagProps) {
   const reduced = useReducedMotion();
 
   return (

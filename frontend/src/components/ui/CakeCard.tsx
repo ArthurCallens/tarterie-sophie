@@ -5,13 +5,14 @@ type CakeCardProps = {
   name: string;
   note?: string;
   price?: string;
+  priceSuffix?: string;
   image: string;
   alt: string;
   rotate?: number;
   allergens?: string[];
 };
 
-export function CakeCard({ name, note, price, image, alt, rotate = 0, allergens }: CakeCardProps) {
+export function CakeCard({ name, note, price, priceSuffix, image, alt, rotate = 0, allergens }: CakeCardProps) {
   return (
     <motion.div
       className="group relative pt-4"
@@ -21,7 +22,7 @@ export function CakeCard({ name, note, price, image, alt, rotate = 0, allergens 
     >
       {price && (
         <div className="absolute -right-3 top-0 z-10">
-          <KraftTag price={price} rotate={rotate < 0 ? 8 : -8} />
+          <KraftTag price={price} suffix={priceSuffix ?? ""} rotate={rotate < 0 ? 8 : -8} />
         </div>
       )}
       <div className="overflow-hidden rounded-3xl bg-cream-dark shadow-[var(--shadow-card)] ring-1 ring-cacao/5">

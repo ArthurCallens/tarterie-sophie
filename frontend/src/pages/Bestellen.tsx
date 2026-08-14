@@ -88,6 +88,7 @@ export function Bestellen() {
                   name={cake.name}
                   note={cake.description ?? undefined}
                   price={formatPriceEUR(cake.price)}
+                  priceSuffix="/ taart (8 pers.)"
                   image={cake.images[0]?.image_url ?? ""}
                   alt={cake.images[0]?.alt_text ?? cake.name}
                   allergens={cake.allergens}
@@ -111,6 +112,7 @@ export function Bestellen() {
                 <CakeCard
                   name={cake.name}
                   price={formatPriceEUR(cake.price)}
+                  priceSuffix="/ stuk"
                   image={cake.images[0]?.image_url ?? ""}
                   alt={cake.images[0]?.alt_text ?? cake.name}
                   allergens={cake.allergens}
