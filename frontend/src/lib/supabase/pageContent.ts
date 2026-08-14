@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { compressImage } from "../compressImage";
 
 /** Reads one page's JSON content blob (home/about/bestellen/contact/workshops_banner). */
 export async function getPageContent<T>(pageKey: string): Promise<T | null> {
@@ -19,8 +20,9 @@ export async function updatePageContent<T extends object>(pageKey: string, conte
 
 /** Uploads a page photo (hero/portrait/workshop) to the shared product-images bucket under `folder`. */
 export async function uploadSiteImage(file: File, folder: string): Promise<string> {
-  const path = `${folder}/${crypto.randomUUID()}-${file.name}`;
-  const { error } = await supabase.storage.from("product-images").upload(path, file, {
+  const compressed = await compressImage(file);
+  const path = `${folder}/${crypto.randomUUID()}-${compressed.name}`;
+  const { error } = await supabase.storage.from("product-images").upload(path, compressed, {
     cacheControl: "3600",
     upsert: false,
   });

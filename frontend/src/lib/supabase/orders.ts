@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { compressImage } from "../compressImage";
 import type { Order, OrderDeclineFields, OrderEditableFields, OrderInput, OrderStatus } from "./types";
 
 const ORDER_SELECT = "*";
@@ -22,8 +23,9 @@ export async function submitOrder(input: OrderInput): Promise<void> {
 
 /** Storefront: uploads a customer's reference photo, unauthenticated, returns its public URL. */
 export async function uploadOrderReferencePhoto(file: File): Promise<string> {
-  const path = `orders/${crypto.randomUUID()}-${file.name}`;
-  const { error } = await supabase.storage.from("order-references").upload(path, file, {
+  const compressed = await compressImage(file);
+  const path = `orders/${crypto.randomUUID()}-${compressed.name}`;
+  const { error } = await supabase.storage.from("order-references").upload(path, compressed, {
     cacheControl: "3600",
     upsert: false,
   });

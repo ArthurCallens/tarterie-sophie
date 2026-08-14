@@ -1,5 +1,6 @@
 import { supabase } from "./client";
 import { storagePathFromUrl } from "./format";
+import { compressImage } from "../compressImage";
 import type { CustomCakeGalleryImage, CustomCakeOffer, CustomCakeOfferInput } from "./types";
 
 const OFFER_SELECT = "*, gallery:custom_cake_gallery_images(*)";
@@ -30,8 +31,9 @@ export async function updateCustomCakeOffer(input: CustomCakeOfferInput): Promis
 }
 
 export async function uploadCustomCakeGalleryFile(file: File): Promise<{ url: string; path: string }> {
-  const path = `custom-cake/${crypto.randomUUID()}-${file.name}`;
-  const { error } = await supabase.storage.from("product-images").upload(path, file, {
+  const compressed = await compressImage(file);
+  const path = `custom-cake/${crypto.randomUUID()}-${compressed.name}`;
+  const { error } = await supabase.storage.from("product-images").upload(path, compressed, {
     cacheControl: "3600",
     upsert: false,
   });

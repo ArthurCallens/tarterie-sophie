@@ -1,5 +1,6 @@
 import { supabase } from "./client";
 import { storagePathFromUrl } from "./format";
+import { compressImage } from "../compressImage";
 import type { Product, ProductCategory, ProductImage, ProductInput } from "./types";
 
 const PRODUCT_SELECT = "*, images:product_images(*)";
@@ -101,8 +102,9 @@ export async function uploadProductImageFile(
   productId: string,
   file: File,
 ): Promise<{ url: string; path: string }> {
-  const path = `products/${productId}/${crypto.randomUUID()}-${file.name}`;
-  const { error } = await supabase.storage.from("product-images").upload(path, file, {
+  const compressed = await compressImage(file);
+  const path = `products/${productId}/${crypto.randomUUID()}-${compressed.name}`;
+  const { error } = await supabase.storage.from("product-images").upload(path, compressed, {
     cacheControl: "3600",
     upsert: false,
   });

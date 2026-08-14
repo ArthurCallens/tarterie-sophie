@@ -250,9 +250,22 @@ function itemUnitLabel(category: OrderItem["category"]): string {
  * per item without losing the automatic calculation for everything else.
  */
 function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (items: OrderItem[]) => void }) {
-  function updateItem(id: string, patch: Partial<Pick<OrderItem, "quantity" | "unitPrice">>) {
+  // Accepts the raw typed string, not a pre-parsed/clamped number — clamping
+  // on every keystroke means an empty field (e.g. after backspacing a
+  // single digit to type a new one) instantly snaps back to the minimum,
+  // making the field impossible to actually clear. Only `commitItem` (on
+  // blur) enforces the real minimum.
+  function updateItem(id: string, field: "quantity" | "unitPrice", raw: string) {
+    const parsed = raw === "" ? 0 : Number(raw);
+    if (Number.isNaN(parsed) || parsed < 0) return;
+    onChange(items.map((item) => (item.id === id ? { ...item, [field]: parsed } : item)));
+  }
+
+  function commitItem(id: string) {
     onChange(
-      items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      items.map((item) =>
+        item.id === id ? { ...item, quantity: item.quantity || 1, unitPrice: item.unitPrice || 0 } : item,
+      ),
     );
   }
 
@@ -269,8 +282,10 @@ function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (
             <input
               type="number"
               min={1}
-              value={item.quantity}
-              onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+              value={item.quantity === 0 ? "" : item.quantity}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => updateItem(item.id, "quantity", e.target.value)}
+              onBlur={() => commitItem(item.id)}
               className="w-14 rounded-md border border-cacao/15 bg-cream px-1.5 py-1 text-center text-cacao focus:border-cherry"
             />
             <span className="text-[11px] text-cacao-soft/70">{itemUnitLabel(item.category)} à</span>
@@ -278,8 +293,10 @@ function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (
               type="number"
               min={0}
               step="0.01"
-              value={item.unitPrice}
-              onChange={(e) => updateItem(item.id, { unitPrice: Math.max(0, Number(e.target.value) || 0) })}
+              value={item.unitPrice === 0 ? "" : item.unitPrice}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => updateItem(item.id, "unitPrice", e.target.value)}
+              onBlur={() => commitItem(item.id)}
               className="w-20 rounded-md border border-cacao/15 bg-cream px-1.5 py-1 text-cacao focus:border-cherry"
             />
             <span className="text-[11px] text-cacao-soft/70">EUR</span>

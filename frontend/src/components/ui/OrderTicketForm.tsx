@@ -29,13 +29,17 @@ function describeSelection(selection: Selection): string {
 }
 
 function toOrderItem(id: string, selection: Selection): OrderItem {
+  // Guards against a not-yet-blurred, momentarily-empty (0) quantity field
+  // ever reaching submission — commitQty normally handles this on blur, but
+  // never trust that alone for what gets sent to the server.
+  const quantity = selection.qty || 1;
   return {
     id,
     category: selection.category,
     label: selection.label,
-    quantity: selection.qty,
+    quantity,
     unitPrice: selection.unitPrice,
-    lineTotal: selection.qty * selection.unitPrice,
+    lineTotal: quantity * selection.unitPrice,
   };
 }
 
@@ -83,8 +87,21 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     });
   }
 
-  function setQty(id: string, qty: number) {
-    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: Math.max(1, qty || 1) } } : prev));
+  /**
+   * Accepts the raw input string, not a pre-parsed number — an empty field
+   * (mid-edit, e.g. after backspacing a single digit to type a new number)
+   * has to be representable as 0 here, not silently snapped back to 1 on
+   * every keystroke, or the field becomes impossible to clear.
+   * `commitQty` (on blur) is what actually enforces the minimum of 1.
+   */
+  function setQty(id: string, raw: string) {
+    const parsed = raw === "" ? 0 : Number(raw);
+    if (Number.isNaN(parsed) || parsed < 0) return;
+    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: parsed } } : prev));
+  }
+
+  function commitQty(id: string) {
+    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], qty: prev[id].qty || 1 } } : prev));
   }
 
   const selectedIds = Object.keys(selections);
@@ -270,10 +287,11 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                 <input
                   type="number"
                   min={1}
-                  value={selections[CUSTOM_CAKE_ID].qty}
+                  value={selections[CUSTOM_CAKE_ID].qty === 0 ? "" : selections[CUSTOM_CAKE_ID].qty}
                   onClick={(e) => e.stopPropagation()}
                   onFocus={selectOnFocus}
-                  onChange={(e) => setQty(CUSTOM_CAKE_ID, Number(e.target.value))}
+                  onChange={(e) => setQty(CUSTOM_CAKE_ID, e.target.value)}
+                  onBlur={() => commitQty(CUSTOM_CAKE_ID)}
                   className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
                 />
               </label>
@@ -292,7 +310,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                     unitLabel="Aantal taarten? (telkens voor 8 personen)"
                     selection={selections[product.id]}
                     onToggle={() => toggleSelection(product.id, product.name, "klassieker", product.price)}
-                    onQtyChange={(qty) => setQty(product.id, qty)}
+                    onQtyChange={(value) => setQty(product.id, value)}
+                    onQtyBlur={() => commitQty(product.id)}
                   />
                 ))}
               </div>
@@ -313,7 +332,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                     unitLabel="Aantal stuks?"
                     selection={selections[product.id]}
                     onToggle={() => toggleSelection(product.id, product.name, "klein-gebak", product.price)}
-                    onQtyChange={(qty) => setQty(product.id, qty)}
+                    onQtyChange={(value) => setQty(product.id, value)}
+                    onQtyBlur={() => commitQty(product.id)}
                   />
                 ))}
               </div>
@@ -422,13 +442,15 @@ function CakeChoiceCard({
   selection,
   onToggle,
   onQtyChange,
+  onQtyBlur,
 }: {
   product: Product;
   priceSuffix: string;
   unitLabel: string;
   selection?: Selection;
   onToggle: () => void;
-  onQtyChange: (qty: number) => void;
+  onQtyChange: (value: string) => void;
+  onQtyBlur: () => void;
 }) {
   const image = product.images[0];
   const active = Boolean(selection);
@@ -470,10 +492,11 @@ function CakeChoiceCard({
           <input
             type="number"
             min={1}
-            value={selection.qty}
+            value={selection.qty === 0 ? "" : selection.qty}
             onClick={(e) => e.stopPropagation()}
             onFocus={selectOnFocus}
-            onChange={(e) => onQtyChange(Number(e.target.value))}
+            onChange={(e) => onQtyChange(e.target.value)}
+            onBlur={onQtyBlur}
             className="w-full rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
           />
         </label>
