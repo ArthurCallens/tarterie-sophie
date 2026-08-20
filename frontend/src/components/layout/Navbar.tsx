@@ -13,7 +13,6 @@ export function Navbar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3 sm:px-8">
         <Link to="/" className="flex flex-col leading-none" onClick={() => setOpen(false)}>
           <span className="font-display text-2xl font-semibold text-cacao">{SITE.name}</span>
-          <span className="font-script text-lg text-cherry -mt-1">{SITE.tagline}</span>
         </Link>
 
         <div className="flex items-center gap-3 sm:gap-4">

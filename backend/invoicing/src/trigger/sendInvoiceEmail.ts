@@ -41,12 +41,15 @@ export const sendInvoiceEmail = task({
       previousInvoiceNumber = previousInvoice?.invoice_number ?? null;
     }
 
+    // Een factuur vertrekt alleen nadat Sophie de bestelling aanvaard heeft —
+    // zeg dat er expliciet bij, anders komt een factuur uit het niets binnen
+    // zonder dat de klant ooit een "ja" gelezen heeft.
     const body = [
       `Beste ${order.customer_name},`,
       "",
       previousInvoiceNumber
         ? `In bijlage vind je een herziene factuur (${invoice.invoice_number}) voor je bestelling bij ${BUSINESS.name}. Deze factuur vervangt de eerder verstuurde factuur ${previousInvoiceNumber}, die niet langer geldig is.`
-        : `Bedankt voor je bestelling bij ${BUSINESS.name}! In bijlage vind je de factuur (${invoice.invoice_number}) voor je bestelling.`,
+        : `Goed nieuws: je bestelling bij ${BUSINESS.name} is aanvaard en staat ingepland voor ${order.pickup_date}. In bijlage vind je de factuur (${invoice.invoice_number}).`,
       "",
       `Je kan betalen via overschrijving (zie factuur voor IBAN en QR-code) of contant bij afhaling op ${order.pickup_date}.`,
       "",
@@ -58,7 +61,7 @@ export const sendInvoiceEmail = task({
       to: order.customer_email,
       subject: previousInvoiceNumber
         ? `Herziene factuur ${invoice.invoice_number} (vervangt ${previousInvoiceNumber}) — ${BUSINESS.name}`
-        : `Factuur ${invoice.invoice_number} — ${BUSINESS.name}`,
+        : `Je bestelling is aanvaard — factuur ${invoice.invoice_number} — ${BUSINESS.name}`,
       body,
       pdfBuffer,
       filename: `${invoice.invoice_number}.pdf`,

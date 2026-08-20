@@ -6,6 +6,7 @@ import {
   declineOrder,
   deleteOrder,
   getAllOrders,
+  reopenOrder,
   sendDeclineEmail,
   setOrderStatus,
   updateOrderDetails,
@@ -87,11 +88,15 @@ export function useOrders() {
     await waitForInvoiceSettled(order.id, baselineUpdatedAt);
   }
 
-  /** Declined → accepted (fixing a mistaken decline). Same underlying transition as accept. */
-  async function restore(order: Order, price: number) {
-    const baselineUpdatedAt = invoicesByOrderId.get(order.id)?.updated_at ?? null;
-    await acceptOrder(order.id, price);
-    await waitForInvoiceSettled(order.id, baselineUpdatedAt);
+  /**
+   * Declined → pending (een weigering terugdraaien). Bewust *niet* rechtstreeks
+   * naar accepted: de bestelling belandt weer bij "Wachtend", waar Sophie eerst
+   * gegevens en prijs kan aanpassen. Pas als ze daar op "Accepteren" klikt,
+   * wordt er een factuur aangemaakt en verstuurd.
+   */
+  async function reopen(order: Order) {
+    await reopenOrder(order.id);
+    await refresh();
   }
 
   /**
@@ -102,8 +107,8 @@ export function useOrders() {
    *
    * Also voids whatever invoice was active for this order (if any) — a
    * declined order shouldn't leave a "sent" invoice looking current, and it
-   * guarantees `restore()` always issues a brand-new invoice, even if the
-   * price ends up unchanged when the order is later re-accepted.
+   * guarantees a brand-new invoice is issued if the order is later reopened
+   * and re-accepted, even if the price ends up unchanged.
    */
   async function declineWithReason(order: Order, fields: OrderDeclineFields) {
     const activeInvoice = invoicesByOrderId.get(order.id);
@@ -254,7 +259,7 @@ export function useOrders() {
     error,
     refresh,
     accept,
-    restore,
+    reopen,
     declineWithReason,
     archive,
     saveDetails,

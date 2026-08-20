@@ -1,6 +1,5 @@
 export const SITE = {
   name: "Tarterie Sophie",
-  tagline: "Life is short, make it sweet.",
 };
 
 export const NAV_LINKS = [
@@ -18,10 +17,22 @@ export const NAV_LINKS = [
 // Products (Classics, Klein gebak) and the Custom Cake offer work the same
 // way — see src/lib/supabase/products.ts and customCake.ts.
 
+// Altijd in kleine letters — zo staan ze ook op de producten in Supabase, en
+// zo worden ze op de site getoond ("bevat: gluten, ei, melk").
 export const ALLERGENS = [
-  { id: "gluten", label: "Gluten" },
-  { id: "ei", label: "Ei" },
-  { id: "melk", label: "Melk" },
-  { id: "noten", label: "Noten" },
-  { id: "soja", label: "Soja" },
+  { id: "gluten", label: "gluten" },
+  { id: "ei", label: "ei" },
+  { id: "melk", label: "melk" },
+  { id: "noten", label: "noten" },
+  { id: "soja", label: "soja" },
 ];
+
+/**
+ * Vergelijkt allergenen zonder rekening te houden met hoofdletters — oude
+ * bestellingen bevatten nog "Gluten"/"Ei"/… uit de tijd dat de labels met een
+ * hoofdletter geschreven werden, en die moeten in het dashboard nog altijd als
+ * aangevinkt herkend worden.
+ */
+export function hasAllergen(selected: string[], label: string): boolean {
+  return selected.some((a) => a.toLowerCase() === label.toLowerCase());
+}

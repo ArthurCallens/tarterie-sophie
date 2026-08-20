@@ -6,8 +6,11 @@ import { useContactContent } from "../../lib/useContactContent";
 export function Footer() {
   const contact = useContactContent();
 
+  // Geen extra marge boven de footer: elke sectie brengt zelf al pb-20/pb-24
+  // mee, en een mt-24 daarbovenop gaf ~190px lege ruimte waar je doorheen
+  // moest scrollen voor je de footer zag.
   return (
-    <footer className="relative mt-24 bg-cacao text-cream">
+    <footer className="relative bg-cacao text-cream">
       <svg
         className="absolute -top-[1px] left-0 w-full text-cacao"
         viewBox="0 0 1200 24"
@@ -20,7 +23,6 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-3">
         <div>
           <p className="font-display text-2xl font-semibold">{SITE.name}</p>
-          <p className="mt-1 font-script text-xl text-rose">{SITE.tagline}</p>
           {contact && (
             <div className="mt-5 flex gap-3">
               <motion.a
@@ -86,7 +88,7 @@ export function Footer() {
         <p>
           Allergeneninformatie op aanvraag — twijfel je? Laat het altijd weten bij je bestelling.
         </p>
-        <p className="mt-1">© {new Date().getFullYear()} {SITE.name}. Alle taarten met liefde gebakken in Gent.</p>
+        <p className="mt-1">© {new Date().getFullYear()} {SITE.name}.</p>
       </div>
     </footer>
   );

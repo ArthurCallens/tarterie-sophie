@@ -14,7 +14,7 @@ export function OrdersPage() {
     loading,
     error,
     accept,
-    restore,
+    reopen,
     declineWithReason,
     archive,
     saveDetails,
@@ -106,7 +106,7 @@ export function OrdersPage() {
                   key={order.id}
                   order={order}
                   invoice={invoicesByOrderId.get(order.id)}
-                  onRestore={restore}
+                  onReopen={reopen}
                   onDelete={remove}
                   highlighted={highlightedId === order.id}
                 />

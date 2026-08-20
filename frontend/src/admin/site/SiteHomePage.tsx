@@ -97,7 +97,7 @@ export function SiteHomePage() {
       </form>
 
       <div className="mt-8 border-t border-cacao/10 pt-6">
-        <h2 className="font-display text-lg font-semibold text-cacao">Vertrouwd door (badges)</h2>
+        <h2 className="font-display text-lg font-semibold text-cacao">Badges (Home &amp; Over mij)</h2>
         <div className="mt-3">
           <TrustBadgesEditor />
         </div>

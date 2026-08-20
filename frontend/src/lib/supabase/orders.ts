@@ -79,14 +79,37 @@ export async function declineOrder(id: string, fields: OrderDeclineFields): Prom
   return normalize(data as Order);
 }
 
-/** The only path into 'accepted' — always carries a price, whether from pending or restored from declined. */
+/**
+ * Declined → pending. Een geweigerde bestelling die Sophie toch wil aannemen
+ * gaat eerst terug in "wachtend": daar kan ze naam, datum, items en prijs nog
+ * aanpassen, en pas het daaropvolgende "Accepteren" stuurt een factuur. Zo
+ * vertrekt er nooit een factuur op basis van gegevens die ze nog wou wijzigen.
+ */
+export async function reopenOrder(id: string): Promise<Order> {
+  const { data, error } = await supabase
+    .from("orders")
+    .update({
+      status: "pending",
+      // De volgende weigercyclus (als die er komt) start weer schoon.
+      decline_reason: null,
+      decline_notify: true,
+      decline_email_status: null,
+    })
+    .eq("id", id)
+    .select(ORDER_SELECT)
+    .single();
+  if (error) throw error;
+  return normalize(data as Order);
+}
+
+/** The only path into 'accepted' — always carries a price. */
 export async function acceptOrder(id: string, price: number): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
     .update({
       status: "accepted",
       price,
-      // A restored order starts its next possible decline cycle clean.
+      // An accepted order starts its next possible decline cycle clean.
       decline_reason: null,
       decline_notify: true,
       decline_email_status: null,

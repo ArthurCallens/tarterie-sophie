@@ -130,7 +130,7 @@ async function seedOrderSteps() {
     },
     {
       title: "Geef je bestelling door",
-      body: "Liefst 3 dagen op voorhand, zodat ik de tijd heb om verse ingrediënten in huis te halen.",
+      body: "Liefst drie weken op voorhand, zodat ik de tijd heb om verse ingrediënten in huis te halen.",
       sort_order: 1,
     },
     {

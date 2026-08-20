@@ -42,8 +42,8 @@ export function CakeCard({ name, note, price, priceSuffix, image, alt, rotate = 
           <h3 className="font-display text-lg leading-tight text-cacao">{name}</h3>
           {note && <p className="mt-1 text-sm italic text-cacao-soft">{note}</p>}
           {allergens && allergens.length > 0 && (
-            <p className="mt-2 font-stamp text-[11px] uppercase tracking-wide text-cacao-soft/80">
-              Bevat: {allergens.join(", ")}
+            <p className="mt-2 font-stamp text-[11px] tracking-wide text-cacao-soft/80">
+              Bevat: {allergens.map((a) => a.toLowerCase()).join(", ")}
             </p>
           )}
         </div>

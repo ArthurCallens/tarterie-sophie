@@ -20,12 +20,27 @@ type Selection = {
   label: string;
   qty: number;
   unitPrice: number;
+  /** Alleen voor de gepersonaliseerde taart: de vulling die de klant koos. */
+  filling?: string;
 };
+
+/**
+ * Wat er uiteindelijk als omschrijving van deze lijn doorgaat — naar het
+ * dashboard, de bevestigingsmail en de factuur. Voor de gepersonaliseerde
+ * taart hangt de gekozen vulling er hier aan vast, zodat ze nergens onderweg
+ * verloren gaat.
+ */
+function selectionLabel(selection: Selection): string {
+  if (selection.category === "custom" && selection.filling) {
+    return `${selection.label} — vulling: ${selection.filling}`;
+  }
+  return selection.label;
+}
 
 function describeSelection(selection: Selection): string {
   if (selection.category === "klassieker") return `${selection.qty}x ${selection.label} (taart voor 8 pers.)`;
   if (selection.category === "klein-gebak") return `${selection.label} (${selection.qty} stuks)`;
-  return `${selection.label} (voor ${selection.qty} personen)`;
+  return `${selectionLabel(selection)} (voor ${selection.qty} personen)`;
 }
 
 function toOrderItem(id: string, selection: Selection): OrderItem {
@@ -35,7 +50,7 @@ function toOrderItem(id: string, selection: Selection): OrderItem {
   return {
     id,
     category: selection.category,
-    label: selection.label,
+    label: selectionLabel(selection),
     quantity,
     unitPrice: selection.unitPrice,
     lineTotal: quantity * selection.unitPrice,
@@ -92,6 +107,10 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
    * has to be representable as 0 here, not silently snapped to some default
    * on every keystroke, or the field becomes impossible to clear.
    */
+  function setFilling(id: string, filling: string) {
+    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], filling } } : prev));
+  }
+
   function setQty(id: string, raw: string) {
     const digitsOnly = raw.replace(/[^0-9]/g, "");
     const parsed = digitsOnly === "" ? 0 : Number(digitsOnly);
@@ -108,6 +127,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   }
 
   const selectedIds = Object.keys(selections);
+  const fillingOptions = (customCake?.fillings ?? []).filter((f) => f.trim() !== "");
   const classics = products.filter((p) => p.category === "klassieker");
   const smallPastries = products.filter((p) => p.category === "klein-gebak");
   const items = selectedIds.map((id) => toOrderItem(id, selections[id]));
@@ -116,13 +136,21 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const daysUntilPickup = pickupDate
     ? Math.ceil((new Date(`${pickupDate}T00:00:00`).getTime() - Date.now()) / 86_400_000)
     : null;
-  const pickupSoonWarning = daysUntilPickup !== null && daysUntilPickup >= 0 && daysUntilPickup < 7;
+  // Sophie vraagt om bestellingen drie weken op voorhand door te geven — alles
+  // korter dan dat krijgt een waarschuwing, maar wordt niet geblokkeerd.
+  const MIN_LEAD_DAYS = 21;
+  const pickupSoonWarning = daysUntilPickup !== null && daysUntilPickup >= 0 && daysUntilPickup < MIN_LEAD_DAYS;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
     if (selectedIds.length === 0) {
       setSubmitError("Kies minstens één taart.");
+      return;
+    }
+    const customSelection = selections[CUSTOM_CAKE_ID];
+    if (customSelection && fillingOptions.length > 0 && !customSelection.filling) {
+      setSubmitError("Kies een vulling voor je gepersonaliseerde taart.");
       return;
     }
     setIsSubmitting(true);
@@ -285,21 +313,47 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
               </span>
             </motion.button>
             {selections[CUSTOM_CAKE_ID] && (
-              <label className="flex items-center gap-2 border-t border-cherry/20 bg-cream px-4 py-2.5 text-sm font-medium text-cacao">
-                Voor hoeveel personen?
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={selections[CUSTOM_CAKE_ID].qty === 0 ? "" : selections[CUSTOM_CAKE_ID].qty}
-                  onClick={(e) => e.stopPropagation()}
-                  onFocus={selectOnFocus}
-                  onChange={(e) => setQty(CUSTOM_CAKE_ID, e.target.value)}
-                  onBlur={() => deselectIfEmpty(CUSTOM_CAKE_ID)}
-                  placeholder="0"
-                  className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
-                />
-              </label>
+              <div className="border-t border-cherry/20 bg-cream">
+                <label className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-cacao">
+                  Voor hoeveel personen?
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={selections[CUSTOM_CAKE_ID].qty === 0 ? "" : selections[CUSTOM_CAKE_ID].qty}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={selectOnFocus}
+                    onChange={(e) => setQty(CUSTOM_CAKE_ID, e.target.value)}
+                    onBlur={() => deselectIfEmpty(CUSTOM_CAKE_ID)}
+                    placeholder="0"
+                    className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
+                  />
+                </label>
+                {fillingOptions.length > 0 && (
+                  <label className="flex flex-col gap-1.5 border-t border-cherry/20 px-4 py-2.5 text-sm font-medium text-cacao">
+                    Welke vulling wil je?
+                    <select
+                      required
+                      value={selections[CUSTOM_CAKE_ID].filling ?? ""}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setFilling(CUSTOM_CAKE_ID, e.target.value)}
+                      className="rounded-lg border border-cacao/15 bg-cream px-3 py-2 text-base font-normal text-cacao focus:border-cherry"
+                    >
+                      <option value="" disabled>
+                        Kies een vulling…
+                      </option>
+                      {fillingOptions.map((filling) => (
+                        <option key={filling} value={filling}>
+                          {filling}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs font-normal text-cacao-soft/70">
+                      Nog niet zeker? Kies wat het dichtst aanleunt en vertel het onderaan bij "speciale wensen".
+                    </span>
+                  </label>
+                )}
+              </div>
             )}
           </div>
 
@@ -394,7 +448,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
           />
           {pickupSoonWarning && (
             <span className="text-xs font-medium text-cherry">
-              Dat is minder dan een week vanaf nu — dat lukt niet altijd. Sophie laat je zeker weten of het past.
+              Dat is minder dan drie weken vanaf nu — dat lukt niet altijd. Sophie laat je zeker weten of het past.
             </span>
           )}
         </label>
@@ -424,7 +478,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
       </div>
 
       <p className="mt-6 text-sm text-cacao-soft">
-        Geef je bestelling liefst minstens een week op voorhand door — dat geeft mij de tijd om
+        Geef je bestelling liefst minstens drie weken op voorhand door — dat geeft mij de tijd om
         verse ingrediënten in huis te halen. Ik stuur snel een bevestiging naar jouw e-mailadres
         en we spreken een afhaalmoment af.
       </p>

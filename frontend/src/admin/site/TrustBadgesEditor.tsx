@@ -58,7 +58,7 @@ function Row({ badge, onSaved, onDeleted }: { badge: TrustBadge; onSaved: (b: Tr
   );
 }
 
-/** Shared "Vertrouwd door" badges — shown on both Home and Over mij, edited once here. */
+/** Shared badges — shown on both Home and Over mij, edited once here. */
 export function TrustBadgesEditor() {
   const [badges, setBadges] = useState<TrustBadge[]>([]);
   const [loading, setLoading] = useState(true);

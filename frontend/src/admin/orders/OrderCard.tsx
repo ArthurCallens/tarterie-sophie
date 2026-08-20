@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ALLERGENS } from "../../lib/data";
+import { ALLERGENS, hasAllergen } from "../../lib/data";
 import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
 import type { Invoice, Order, OrderDeclineFields, OrderEditableFields, OrderItem } from "../../lib/supabase/types";
@@ -40,7 +40,8 @@ type OrderCardProps = {
   onSaveDetails?: (order: Order, fields: { price: number | null; notes: string | null }) => void;
   onSaveFields?: (order: Order, fields: OrderEditableFields) => void;
   onArchive?: (order: Order) => void;
-  onRestore?: (order: Order, price: number) => void;
+  /** Geweigerd → wachtend, zodat de bestelling eerst nog aangepast kan worden voor ze geaccepteerd wordt. */
+  onReopen?: (order: Order) => void;
   onDelete?: (order: Order) => void;
   onTogglePaid?: (invoice: Invoice, paid: boolean) => void;
   onResendInvoice?: (order: Order) => void;
@@ -208,7 +209,7 @@ function AllergensField({
       {unlocked ? (
         <div className="flex flex-wrap gap-1.5">
           {ALLERGENS.map((allergen) => {
-            const active = allergens.includes(allergen.label);
+            const active = hasAllergen(allergens, allergen.label);
             return (
               <button
                 key={allergen.id}
@@ -334,7 +335,7 @@ export function OrderCard({
   onSaveDetails,
   onSaveFields,
   onArchive,
-  onRestore,
+  onReopen,
   onDelete,
   onTogglePaid,
   onResendInvoice,
@@ -346,7 +347,7 @@ export function OrderCard({
   const [paid, setPaid] = useState(invoice?.paid ?? false);
   const [resending, setResending] = useState(false);
   const [accepting, setAccepting] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [declineModalOpen, setDeclineModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -384,7 +385,9 @@ export function OrderCard({
   }
 
   function toggleAllergen(label: string) {
-    setAllergens((prev) => (prev.includes(label) ? prev.filter((a) => a !== label) : [...prev, label]));
+    setAllergens((prev) =>
+      hasAllergen(prev, label) ? prev.filter((a) => a.toLowerCase() !== label.toLowerCase()) : [...prev, label],
+    );
   }
 
   function currentFieldEdits(): OrderEditableFields {
@@ -532,13 +535,13 @@ export function OrderCard({
     }
   }
 
-  async function handleRestore() {
-    if (!onRestore || effectivePrice === null || restoring) return;
-    setRestoring(true);
+  async function handleReopen() {
+    if (!onReopen || reopening) return;
+    setReopening(true);
     try {
-      await onRestore(order, effectivePrice);
+      await onReopen(order);
     } finally {
-      setRestoring(false);
+      setReopening(false);
     }
   }
 
@@ -982,41 +985,20 @@ export function OrderCard({
                     }`
                   : "Geen reden opgegeven — er is geen e-mail verstuurd."}
               </p>
-              {onRestore && (
+              {onReopen && (
                 <>
                   <p className="text-xs text-cacao-soft">
-                    Bij herstellen wordt er automatisch een nieuwe factuur verstuurd — ook als de prijs niet
-                    verandert. Een geweigerde bestelling die opnieuw geaccepteerd wordt, krijgt altijd een eigen
-                    factuurnummer.
+                    Toch aannemen? De bestelling gaat eerst terug naar <strong>Wachtend</strong>. Daar kan je alle
+                    gegevens en de prijs nog aanpassen; pas als je daar op "Accepteren" klikt, wordt de factuur
+                    aangemaakt en verstuurd. Ze krijgt dan altijd een nieuw factuurnummer.
                   </p>
-                  {hasItems ? (
-                    <>
-                      <OrderItemsEditor items={items} onChange={setItems} />
-                      <p className="text-sm font-semibold text-cacao">
-                        Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>
-                      </p>
-                    </>
-                  ) : (
-                    <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
-                      Prijs (EUR) — vereist om te herstellen
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        placeholder="Bv. 45"
-                        className={inputClass}
-                      />
-                    </label>
-                  )}
                   <button
                     type="button"
-                    disabled={effectivePrice === null || restoring}
-                    onClick={() => void handleRestore()}
+                    disabled={reopening}
+                    onClick={() => void handleReopen()}
                     className="rounded-full bg-cherry px-4 py-1.5 text-xs font-semibold text-cream hover:bg-cherry-dark disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {restoring ? "Bezig met herstellen…" : "Terug naar geaccepteerd"}
+                    {reopening ? "Bezig…" : "Terug naar wachtend"}
                   </button>
                 </>
               )}

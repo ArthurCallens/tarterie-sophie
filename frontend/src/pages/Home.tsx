@@ -58,7 +58,6 @@ export function Home() {
             <h1 className="mt-4 font-display text-5xl font-semibold leading-[1.05] text-cacao sm:text-6xl">
               Tarterie Sophie
             </h1>
-            <p className="mt-3 font-script text-3xl text-cherry sm:text-4xl">Life is short, make it sweet.</p>
             <p className="mt-6 max-w-md text-lg text-cacao-soft">{content?.heroSubtext}</p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Button to="/bestellen/bestelbon">Bestel een taart</Button>
@@ -153,13 +152,7 @@ export function Home() {
       {/* Trust signals */}
       <section className="relative mx-auto max-w-4xl px-5 py-20 text-center sm:px-8">
         <FloatingTreat variant="macaron" className="-left-6 top-4 hidden lg:block" />
-        <Reveal>
-          <p className="font-stamp text-xs uppercase tracking-[0.2em] text-cherry">Vertrouwd door</p>
-          <h2 className="mt-3 font-display text-3xl font-semibold text-cacao">
-            Meer dan zelfgebakken alleen
-          </h2>
-        </Reveal>
-        <Stagger className="mt-10 flex flex-wrap items-center justify-center gap-8">
+        <Stagger className="flex flex-wrap items-center justify-center gap-8">
           {badges.map((badge) => (
             <Reveal key={badge.id}>
               <WaxBadge label={badge.label} detail={badge.detail} />
