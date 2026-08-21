@@ -29,7 +29,9 @@ export type OrderRow = {
   allergens: string[];
   pickup_date: string;
   message: string | null;
+  /** Legacy single photo; new orders fill `reference_photo_urls` instead. Neither is used on the invoice. */
   reference_photo_url: string | null;
+  reference_photo_urls: string[];
   price: number | null;
   items: OrderItem[];
   notes: string | null;

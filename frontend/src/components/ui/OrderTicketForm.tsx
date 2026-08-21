@@ -12,7 +12,6 @@ type OrderTicketFormProps = {
   customCake?: CustomCakeOffer | null;
 };
 
-const CUSTOM_CAKE_ID = "custom";
 const CUSTOM_CAKE_LABEL = "Gepersonaliseerde themataart (op maat)";
 
 type Selection = {
@@ -20,27 +19,34 @@ type Selection = {
   label: string;
   qty: number;
   unitPrice: number;
-  /** Alleen voor de gepersonaliseerde taart: de vulling die de klant koos. */
-  filling?: string;
 };
 
 /**
- * Wat er uiteindelijk als omschrijving van deze lijn doorgaat — naar het
- * dashboard, de bevestigingsmail en de factuur. Voor de gepersonaliseerde
- * taart hangt de gekozen vulling er hier aan vast, zodat ze nergens onderweg
- * verloren gaat.
+ * Eén gepersonaliseerde taart. Er kunnen er meerdere in dezelfde bestelling
+ * zitten — iemand die voor twee feestjes tegelijk bestelt wil twee verschillende
+ * taarten, elk met hun eigen vulling en aantal personen — dus dit is een lijst
+ * en geen enkele selectie zoals bij de klassiekers (waar één regel met een
+ * aantal volstaat, want die taarten zijn onderling identiek).
  */
-function selectionLabel(selection: Selection): string {
-  if (selection.category === "custom" && selection.filling) {
-    return `${selection.label} — vulling: ${selection.filling}`;
-  }
-  return selection.label;
+type CustomCakeEntry = {
+  /** Stabiele sleutel voor React en voor de OrderItem-id; niet zichtbaar voor de klant. */
+  key: string;
+  qty: number;
+  filling: string;
+};
+
+/**
+ * Wat er als omschrijving van deze lijn doorgaat — naar het dashboard, de
+ * bevestigingsmail en de factuur. De gekozen vulling hangt er hier aan vast,
+ * zodat ze nergens onderweg verloren gaat.
+ */
+function customCakeLabel(entry: CustomCakeEntry): string {
+  return entry.filling ? `${CUSTOM_CAKE_LABEL} — vulling: ${entry.filling}` : CUSTOM_CAKE_LABEL;
 }
 
 function describeSelection(selection: Selection): string {
   if (selection.category === "klassieker") return `${selection.qty}x ${selection.label} (taart voor 8 pers.)`;
-  if (selection.category === "klein-gebak") return `${selection.label} (${selection.qty} stuks)`;
-  return `${selectionLabel(selection)} (voor ${selection.qty} personen)`;
+  return `${selection.label} (${selection.qty} stuks)`;
 }
 
 function toOrderItem(id: string, selection: Selection): OrderItem {
@@ -50,10 +56,22 @@ function toOrderItem(id: string, selection: Selection): OrderItem {
   return {
     id,
     category: selection.category,
-    label: selectionLabel(selection),
+    label: selection.label,
     quantity,
     unitPrice: selection.unitPrice,
     lineTotal: quantity * selection.unitPrice,
+  };
+}
+
+function customCakeToOrderItem(entry: CustomCakeEntry, unitPrice: number): OrderItem {
+  const quantity = entry.qty || 1;
+  return {
+    id: `custom-${entry.key}`,
+    category: "custom",
+    label: customCakeLabel(entry),
+    quantity,
+    unitPrice,
+    lineTotal: quantity * unitPrice,
   };
 }
 
@@ -85,6 +103,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [allergenChoices, setAllergenChoices] = useState<string[]>([]);
   const [selections, setSelections] = useState<Record<string, Selection>>({});
+  const [customCakes, setCustomCakes] = useState<CustomCakeEntry[]>([]);
+  const [photoCount, setPhotoCount] = useState(0);
   const [pickupDate, setPickupDate] = useState("");
 
   function toggleAllergen(id: string) {
@@ -101,16 +121,24 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     });
   }
 
+  function addCustomCake() {
+    setCustomCakes((prev) => [...prev, { key: crypto.randomUUID(), qty: 1, filling: "" }]);
+  }
+
+  function updateCustomCake(key: string, patch: Partial<CustomCakeEntry>) {
+    setCustomCakes((prev) => prev.map((entry) => (entry.key === key ? { ...entry, ...patch } : entry)));
+  }
+
+  function removeCustomCake(key: string) {
+    setCustomCakes((prev) => prev.filter((entry) => entry.key !== key));
+  }
+
   /**
    * Accepts the raw input string, not a pre-parsed number — an empty field
    * (mid-edit, e.g. after backspacing a single digit to type a new number)
    * has to be representable as 0 here, not silently snapped to some default
    * on every keystroke, or the field becomes impossible to clear.
    */
-  function setFilling(id: string, filling: string) {
-    setSelections((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], filling } } : prev));
-  }
-
   function setQty(id: string, raw: string) {
     const digitsOnly = raw.replace(/[^0-9]/g, "");
     const parsed = digitsOnly === "" ? 0 : Number(digitsOnly);
@@ -130,7 +158,8 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const fillingOptions = (customCake?.fillings ?? []).filter((f) => f.trim() !== "");
   const classics = products.filter((p) => p.category === "klassieker");
   const smallPastries = products.filter((p) => p.category === "klein-gebak");
-  const items = selectedIds.map((id) => toOrderItem(id, selections[id]));
+  const customCakeItems = customCakes.map((entry) => customCakeToOrderItem(entry, customCake?.price ?? 0));
+  const items = [...customCakeItems, ...selectedIds.map((id) => toOrderItem(id, selections[id]))];
   const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   const daysUntilPickup = pickupDate
@@ -144,23 +173,29 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
-    if (selectedIds.length === 0) {
+    if (items.length === 0) {
       setSubmitError("Kies minstens één taart.");
       return;
     }
-    const customSelection = selections[CUSTOM_CAKE_ID];
-    if (customSelection && fillingOptions.length > 0 && !customSelection.filling) {
-      setSubmitError("Kies een vulling voor je gepersonaliseerde taart.");
+    if (fillingOptions.length > 0 && customCakes.some((entry) => !entry.filling)) {
+      setSubmitError("Kies een vulling voor elke gepersonaliseerde taart.");
       return;
     }
     setIsSubmitting(true);
     setSubmitError(null);
 
     const form = new FormData(event.currentTarget);
-    const photo = form.get("referencePhoto") as File | null;
+    const photos = form.getAll("referencePhotos").filter((f): f is File => f instanceof File && f.size > 0);
 
     try {
-      const referencePhotoUrl = photo && photo.size > 0 ? await uploadOrderReferencePhoto(photo) : null;
+      // Sequentieel, niet parallel: elke foto wordt eerst in de browser
+      // gecomprimeerd (canvas), en tien tegelijk laat een gsm merkbaar
+      // haperen. Een paar seconden extra bij het versturen weegt niet op
+      // tegen een bevroren formulier.
+      const referencePhotoUrls: string[] = [];
+      for (const photo of photos) {
+        referencePhotoUrls.push(await uploadOrderReferencePhoto(photo));
+      }
 
       await submitOrder({
         customer_name: String(form.get("name") || ""),
@@ -168,11 +203,14 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         customer_phone: String(form.get("phone") || ""),
         occasion: String(form.get("occasion") || ""),
         servings: estimateServings(items),
-        flavor: selectedIds.map((id) => describeSelection(selections[id])).join(", "),
+        flavor: [
+          ...customCakes.map((entry) => `${customCakeLabel(entry)} (voor ${entry.qty || 1} personen)`),
+          ...selectedIds.map((id) => describeSelection(selections[id])),
+        ].join(", "),
         allergens: allergenChoices,
         pickup_date: String(form.get("pickupDate") || ""),
         message: String(form.get("message") || "") || null,
-        reference_photo_url: referencePhotoUrl,
+        reference_photo_urls: referencePhotoUrls,
         items,
         price: total,
       });
@@ -278,15 +316,15 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
           {/* Custom cake — the star of the show, always shown first and bigger. */}
           <div
             className={`mt-3 overflow-hidden rounded-2xl border-2 transition-colors ${
-              selections[CUSTOM_CAKE_ID] ? "border-cherry bg-cherry/5" : "border-cherry/40 bg-cream"
+              customCakes.length > 0 ? "border-cherry bg-cherry/5" : "border-cherry/40 bg-cream"
             }`}
           >
             <motion.button
               type="button"
               whileHover={{ scale: 1.005 }}
               whileTap={{ scale: 0.995 }}
-              onClick={() => toggleSelection(CUSTOM_CAKE_ID, CUSTOM_CAKE_LABEL, "custom", customCake?.price ?? 0)}
-              aria-pressed={Boolean(selections[CUSTOM_CAKE_ID])}
+              onClick={() => (customCakes.length === 0 ? addCustomCake() : removeCustomCake(customCakes[0].key))}
+              aria-pressed={customCakes.length > 0}
               className="flex w-full items-stretch gap-4 text-left"
             >
               {customCake?.gallery?.[0] && (
@@ -312,47 +350,77 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                 )}
               </span>
             </motion.button>
-            {selections[CUSTOM_CAKE_ID] && (
+
+            {customCakes.length > 0 && (
               <div className="border-t border-cherry/20 bg-cream">
-                <label className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-cacao">
-                  Voor hoeveel personen?
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={selections[CUSTOM_CAKE_ID].qty === 0 ? "" : selections[CUSTOM_CAKE_ID].qty}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={selectOnFocus}
-                    onChange={(e) => setQty(CUSTOM_CAKE_ID, e.target.value)}
-                    onBlur={() => deselectIfEmpty(CUSTOM_CAKE_ID)}
-                    placeholder="0"
-                    className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
-                  />
-                </label>
-                {fillingOptions.length > 0 && (
-                  <label className="flex flex-col gap-1.5 border-t border-cherry/20 px-4 py-2.5 text-sm font-medium text-cacao">
-                    Welke vulling wil je?
-                    <select
-                      required
-                      value={selections[CUSTOM_CAKE_ID].filling ?? ""}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setFilling(CUSTOM_CAKE_ID, e.target.value)}
-                      className="rounded-lg border border-cacao/15 bg-cream px-3 py-2 text-base font-normal text-cacao focus:border-cherry"
-                    >
-                      <option value="" disabled>
-                        Kies een vulling…
-                      </option>
-                      {fillingOptions.map((filling) => (
-                        <option key={filling} value={filling}>
-                          {filling}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs font-normal text-cacao-soft/70">
-                      Nog niet zeker? Kies wat het dichtst aanleunt en vertel het onderaan bij "speciale wensen".
-                    </span>
-                  </label>
-                )}
+                {customCakes.map((entry, index) => (
+                  <div key={entry.key} className="border-b border-cherry/15 px-4 py-3 last:border-b-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-display text-sm text-cacao">
+                        {customCakes.length > 1 ? `Taart ${index + 1}` : "Jouw taart"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomCake(entry.key)}
+                        className="rounded-full px-2 py-0.5 text-xs font-semibold text-cacao-soft hover:bg-cherry/10 hover:text-cherry"
+                      >
+                        Verwijder
+                      </button>
+                    </div>
+
+                    <label className="mt-2 flex items-center gap-2 text-sm font-medium text-cacao">
+                      Voor hoeveel personen?
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={entry.qty === 0 ? "" : entry.qty}
+                        onFocus={selectOnFocus}
+                        onChange={(e) =>
+                          updateCustomCake(entry.key, { qty: Number(e.target.value.replace(/[^0-9]/g, "")) || 0 })
+                        }
+                        onBlur={() => entry.qty === 0 && updateCustomCake(entry.key, { qty: 1 })}
+                        placeholder="0"
+                        className="w-20 rounded-lg border border-cacao/15 bg-cream px-2 py-1 text-cacao focus:border-cherry"
+                      />
+                    </label>
+
+                    {fillingOptions.length > 0 && (
+                      <label className="mt-2 flex flex-col gap-1.5 text-sm font-medium text-cacao">
+                        Welke vulling wil je?
+                        <select
+                          required
+                          value={entry.filling}
+                          onChange={(e) => updateCustomCake(entry.key, { filling: e.target.value })}
+                          className="rounded-lg border border-cacao/15 bg-cream px-3 py-2 text-base font-normal text-cacao focus:border-cherry"
+                        >
+                          <option value="" disabled>
+                            Kies een vulling…
+                          </option>
+                          {fillingOptions.map((filling) => (
+                            <option key={filling} value={filling}>
+                              {filling}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                ))}
+
+                <div className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={addCustomCake}
+                    className="rounded-full border border-dashed border-cherry/50 px-4 py-1.5 text-xs font-semibold text-cherry hover:bg-cherry/10"
+                  >
+                    + Nog een gepersonaliseerde taart
+                  </button>
+                  <p className="mt-2 text-xs text-cacao-soft/70">
+                    Elke taart krijgt zijn eigen vulling en aantal personen. Nog niet zeker van een vulling? Kies wat
+                    het dichtst aanleunt en vertel het onderaan bij "speciale wensen".
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -454,15 +522,19 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         </label>
 
         <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
-          Inspiratiefoto (optioneel)
+          Inspiratiefoto's (optioneel)
           <input
-            name="referencePhoto"
+            name="referencePhotos"
             type="file"
             accept="image/*"
+            multiple
+            onChange={(e) => setPhotoCount(e.target.files?.length ?? 0)}
             className="rounded-xl border border-dashed border-cacao/25 bg-cream px-4 py-3 text-sm text-cacao-soft file:mr-3 file:rounded-full file:border-0 file:bg-cherry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-cream"
           />
           <span className="text-xs font-normal text-cacao-soft/70">
-            Optioneel — dit helpt me je wens beter te begrijpen.
+            {photoCount > 0
+              ? `${photoCount} foto${photoCount === 1 ? "" : "'s"} geselecteerd.`
+              : "Optioneel — je mag er meerdere tegelijk kiezen. Dit helpt me je wens beter te begrijpen."}
           </span>
         </label>
 

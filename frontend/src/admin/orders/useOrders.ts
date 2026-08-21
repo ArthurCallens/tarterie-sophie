@@ -6,6 +6,7 @@ import {
   declineOrder,
   deleteOrder,
   getAllOrders,
+  orderPhotos,
   reopenOrder,
   sendDeclineEmail,
   setOrderStatus,
@@ -179,7 +180,7 @@ export function useOrders() {
     if (countedAsIncome) {
       await snapshotOrderIncomeEntry(order, invoicesByOrderId.get(order.id) ?? null);
     }
-    await deleteOrder(order.id, order.reference_photo_url);
+    await deleteOrder(order.id, orderPhotos(order));
     await refresh();
   }
 

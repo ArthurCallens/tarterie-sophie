@@ -218,7 +218,9 @@ export type Order = {
   allergens: string[];
   pickup_date: string;
   message: string | null;
+  /** Legacy: bestellingen van voor meerdere foto's mogelijk waren. Lees via `orderPhotos()`. */
   reference_photo_url: string | null;
+  reference_photo_urls: string[];
   price: number | null;
   items: OrderItem[];
   notes: string | null;
@@ -260,7 +262,7 @@ export type OrderInput = {
   allergens: string[];
   pickup_date: string;
   message: string | null;
-  reference_photo_url: string | null;
+  reference_photo_urls: string[];
   items: OrderItem[];
   /** Auto-computed sum of the items' line totals at submission time — a starting suggestion, not binding; Sophie reviews/adjusts before accepting. */
   price: number;

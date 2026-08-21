@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ALLERGENS, hasAllergen } from "../../lib/data";
 import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
+import { orderPhotos } from "../../lib/supabase/orders";
 import type { Invoice, Order, OrderDeclineFields, OrderEditableFields, OrderItem } from "../../lib/supabase/types";
 import { DeclineOrderModal } from "./DeclineOrderModal";
 import type { SupersededInvoice } from "./useOrders";
@@ -243,12 +244,23 @@ function itemUnitLabel(category: OrderItem["category"]): string {
   return "pers.";
 }
 
+/** Een lege lijn die Sophie zelf invult — bv. een taart die niet op de site staat. */
+function blankItem(): OrderItem {
+  return { id: `manual-${crypto.randomUUID()}`, category: "custom", label: "", quantity: 1, unitPrice: 0, lineTotal: 0 };
+}
+
 /**
  * Editable breakdown of what was actually ordered — the total price is
  * calculated from these (quantity × unit price per line), not typed in as
  * one flat number. Every line stays editable here, including the
  * personalised cake's, so Sophie can correct a quantity or bump a price
  * per item without losing the automatic calculation for everything else.
+ *
+ * Sophie can also add lines the customer never picked. That's the escape
+ * hatch for a special request agreed over mail or phone — a cake that isn't
+ * in the catalogue, an extra tier, a delivery fee. An added line is an
+ * ordinary item, so it lands in the total, the invoice PDF and the
+ * bookkeeping like any other, with no separate code path.
  */
 function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (items: OrderItem[]) => void }) {
   // Accepts the raw typed string, not a pre-parsed/clamped number — clamping
@@ -270,16 +282,45 @@ function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (
     );
   }
 
+  function setLabel(id: string, label: string) {
+    onChange(items.map((item) => (item.id === id ? { ...item, label } : item)));
+  }
+
+  function removeItem(id: string) {
+    onChange(items.filter((item) => item.id !== id));
+  }
+
+  // Een handmatig toegevoegde lijn heeft nog geen omschrijving van de klant,
+  // dus die moet Sophie zelf kunnen intypen. Lijnen die de klant zelf koos
+  // blijven leesbare tekst — die omschrijving is wat de klant besteld heeft
+  // en hoort niet per ongeluk overschreven te worden.
+  const isManual = (item: OrderItem) => item.id.startsWith("manual-");
+
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs font-medium text-cacao">Bestelde items</span>
       <div className="flex flex-col gap-2 rounded-lg bg-cream px-3 py-2">
+        {items.length === 0 && (
+          <p className="text-[11px] text-cacao-soft/70">
+            Nog geen items — voeg er zelf een toe om een prijs te kunnen berekenen.
+          </p>
+        )}
         {items.map((item) => (
           <div
             key={item.id}
             className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-cacao/10 pb-2 last:border-0 last:pb-0"
           >
-            <span className="min-w-0 flex-1 basis-full text-cacao sm:basis-auto">{item.label}</span>
+            {isManual(item) ? (
+              <input
+                type="text"
+                value={item.label}
+                onChange={(e) => setLabel(item.id, e.target.value)}
+                placeholder="Omschrijving, bv. Bruidstaart 3 verdiepingen"
+                className="min-w-0 flex-1 basis-full rounded-md border border-cacao/15 bg-cream px-1.5 py-1 text-cacao focus:border-cherry"
+              />
+            ) : (
+              <span className="min-w-0 flex-1 basis-full text-cacao sm:basis-auto">{item.label}</span>
+            )}
             <input
               type="number"
               min={1}
@@ -304,8 +345,24 @@ function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (
             <span className="ml-auto shrink-0 font-medium text-cacao">
               {formatPriceEUR(item.quantity * item.unitPrice)} EUR
             </span>
+            <button
+              type="button"
+              onClick={() => removeItem(item.id)}
+              aria-label={`Lijn "${item.label || "zonder omschrijving"}" verwijderen`}
+              title="Lijn verwijderen"
+              className="shrink-0 rounded-full p-1 text-cacao-soft hover:bg-cherry/10 hover:text-cherry"
+            >
+              <TrashIcon />
+            </button>
           </div>
         ))}
+        <button
+          type="button"
+          onClick={() => onChange([...items, blankItem()])}
+          className="w-fit rounded-full border border-dashed border-cacao/30 px-3 py-1 text-[11px] font-semibold text-cacao-soft hover:border-cherry hover:text-cherry"
+        >
+          + Eigen taart of extra toevoegen
+        </button>
       </div>
     </div>
   );
@@ -370,6 +427,7 @@ export function OrderCard({
   const [pickupDate, setPickupDate] = useState(order.pickup_date);
   const [message, setMessage] = useState(order.message ?? "");
   const [items, setItems] = useState<OrderItem[]>(order.items ?? []);
+  const photos = orderPhotos(order);
   const [unlocked, setUnlocked] = useState<Set<FieldKey>>(new Set());
   const isEditableStatus = !readOnly && (order.status === "pending" || order.status === "accepted");
 
@@ -750,14 +808,18 @@ export function OrderCard({
             </>
           )}
 
-          {order.reference_photo_url && (
-            <a href={order.reference_photo_url} target="_blank" rel="noreferrer" className="mt-3 block w-fit">
-              <img
-                src={order.reference_photo_url}
-                alt="Inspiratiefoto van de klant"
-                className="h-20 w-20 rounded-lg object-cover"
-              />
-            </a>
+          {photos.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {photos.map((url, index) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={url}
+                    alt={`Inspiratiefoto ${index + 1} van ${photos.length} van de klant`}
+                    className="h-20 w-20 rounded-lg object-cover"
+                  />
+                </a>
+              ))}
+            </div>
           )}
 
           {!readOnly && order.status === "pending" && (
@@ -768,16 +830,14 @@ export function OrderCard({
               >
                 Bekijk in kalender — past dit op {order.pickup_date}?
               </Link>
+              <OrderItemsEditor items={items} onChange={setItems} />
               {hasItems ? (
-                <>
-                  <OrderItemsEditor items={items} onChange={setItems} />
-                  <p className="text-sm font-semibold text-cacao">
-                    Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>{" "}
-                    <span className="text-[11px] font-normal text-cacao-soft">
-                      (automatisch berekend — pas aan indien nodig)
-                    </span>
-                  </p>
-                </>
+                <p className="text-sm font-semibold text-cacao">
+                  Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>{" "}
+                  <span className="text-[11px] font-normal text-cacao-soft">
+                    (automatisch berekend — pas aan indien nodig)
+                  </span>
+                </p>
               ) : (
                 <label className="flex flex-col gap-1 text-xs font-medium text-cacao">
                   Prijs (EUR) — vereist om te accepteren
@@ -815,13 +875,11 @@ export function OrderCard({
 
           {!readOnly && order.status === "accepted" && (
             <div className="mt-4 space-y-2 border-t border-cacao/10 pt-3">
+              <OrderItemsEditor items={items} onChange={setItems} />
               {hasItems ? (
-                <>
-                  <OrderItemsEditor items={items} onChange={setItems} />
-                  <p className="text-sm font-semibold text-cacao">
-                    Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>
-                  </p>
-                </>
+                <p className="text-sm font-semibold text-cacao">
+                  Totaalprijs: <span className="text-cherry">{formatPriceEUR(itemsTotal)} EUR</span>
+                </p>
               ) : (
                 <EditableField
                   label="Prijs (EUR)"

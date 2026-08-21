@@ -15,6 +15,19 @@ function referencePhotoStoragePath(url: string): string | null {
   return url.slice(index + marker.length);
 }
 
+/**
+ * Alle inspiratiefoto's van een bestelling, ongeacht wanneer ze geplaatst is.
+ * Bestellingen van voor 0016 hebben er hoogstens één, in het oude
+ * `reference_photo_url`; nieuwe schrijven enkel naar de array. Eén plek die
+ * beide samenvoegt, zodat de rest van de app maar met één lijst hoeft te
+ * werken.
+ */
+export function orderPhotos(order: Pick<Order, "reference_photo_url" | "reference_photo_urls">): string[] {
+  const urls = order.reference_photo_urls ?? [];
+  if (urls.length > 0) return urls;
+  return order.reference_photo_url ? [order.reference_photo_url] : [];
+}
+
 /** Storefront: submit a new order (pending, unauthenticated). */
 export async function submitOrder(input: OrderInput): Promise<void> {
   const { error } = await supabase.from("orders").insert(input);
@@ -166,14 +179,14 @@ export async function sendDeclineEmail(orderId: string): Promise<void> {
   if (data?.error) throw new Error(data.error);
 }
 
-/** Permanently deletes an order (and its reference photo, if any). Meant for declined or archived orders. */
-export async function deleteOrder(id: string, referencePhotoUrl: string | null): Promise<void> {
-  if (referencePhotoUrl) {
-    const path = referencePhotoStoragePath(referencePhotoUrl);
-    if (path) {
-      const { error: storageError } = await supabase.storage.from("order-references").remove([path]);
-      if (storageError) throw storageError;
-    }
+/** Permanently deletes an order (and all its reference photos, if any). Meant for declined or archived orders. */
+export async function deleteOrder(id: string, referencePhotoUrls: string[]): Promise<void> {
+  const paths = referencePhotoUrls
+    .map(referencePhotoStoragePath)
+    .filter((path): path is string => path !== null);
+  if (paths.length > 0) {
+    const { error: storageError } = await supabase.storage.from("order-references").remove(paths);
+    if (storageError) throw storageError;
   }
 
   const { error } = await supabase.from("orders").delete().eq("id", id);
