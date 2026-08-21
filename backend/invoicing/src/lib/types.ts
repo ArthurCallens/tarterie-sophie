@@ -14,6 +14,8 @@ export type OrderItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  /** Inspiratiefoto's voor déze taart. Staan bewust niet op de factuur — die vermeldt wat er besteld is, niet hoe het eruit moet zien. */
+  imageUrls?: string[];
 };
 
 /** Mirrors the relevant columns of tarterie_sophie's `orders` table. */

@@ -204,6 +204,14 @@ export type OrderItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  /**
+   * Inspiratiefoto's die bij déze taart horen. Alleen zinvol voor een
+   * gepersonaliseerde taart: een bestelling kan er meerdere bevatten, elk met
+   * een eigen thema, dus een foto zegt niets als ze aan de bestelling als
+   * geheel hangt. Ontbreekt bij oudere bestellingen en bij lijnen die Sophie
+   * zelf toevoegt.
+   */
+  imageUrls?: string[];
 };
 
 export type Order = {

@@ -33,6 +33,8 @@ type CustomCakeEntry = {
   key: string;
   qty: number;
   filling: string;
+  /** Nog niet geüpload — dat gebeurt pas bij het versturen, zodat afhaken niets achterlaat in Storage. */
+  photos: File[];
 };
 
 /**
@@ -63,7 +65,7 @@ function toOrderItem(id: string, selection: Selection): OrderItem {
   };
 }
 
-function customCakeToOrderItem(entry: CustomCakeEntry, unitPrice: number): OrderItem {
+function customCakeToOrderItem(entry: CustomCakeEntry, unitPrice: number, imageUrls: string[]): OrderItem {
   const quantity = entry.qty || 1;
   return {
     id: `custom-${entry.key}`,
@@ -72,6 +74,7 @@ function customCakeToOrderItem(entry: CustomCakeEntry, unitPrice: number): Order
     quantity,
     unitPrice,
     lineTotal: quantity * unitPrice,
+    ...(imageUrls.length > 0 ? { imageUrls } : {}),
   };
 }
 
@@ -104,7 +107,6 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const [allergenChoices, setAllergenChoices] = useState<string[]>([]);
   const [selections, setSelections] = useState<Record<string, Selection>>({});
   const [customCakes, setCustomCakes] = useState<CustomCakeEntry[]>([]);
-  const [photoCount, setPhotoCount] = useState(0);
   const [pickupDate, setPickupDate] = useState("");
 
   function toggleAllergen(id: string) {
@@ -122,7 +124,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   }
 
   function addCustomCake() {
-    setCustomCakes((prev) => [...prev, { key: crypto.randomUUID(), qty: 1, filling: "" }]);
+    setCustomCakes((prev) => [...prev, { key: crypto.randomUUID(), qty: 1, filling: "", photos: [] }]);
   }
 
   function updateCustomCake(key: string, patch: Partial<CustomCakeEntry>) {
@@ -158,8 +160,12 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
   const fillingOptions = (customCake?.fillings ?? []).filter((f) => f.trim() !== "");
   const classics = products.filter((p) => p.category === "klassieker");
   const smallPastries = products.filter((p) => p.category === "klein-gebak");
-  const customCakeItems = customCakes.map((entry) => customCakeToOrderItem(entry, customCake?.price ?? 0));
-  const items = [...customCakeItems, ...selectedIds.map((id) => toOrderItem(id, selections[id]))];
+  // Zonder foto-URL's: enkel om de prijs live te tonen. De echte items worden
+  // pas bij het versturen gebouwd, als de foto's geüpload zijn.
+  const items = [
+    ...customCakes.map((entry) => customCakeToOrderItem(entry, customCake?.price ?? 0, [])),
+    ...selectedIds.map((id) => toOrderItem(id, selections[id])),
+  ];
   const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   const daysUntilPickup = pickupDate
@@ -185,24 +191,28 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     setSubmitError(null);
 
     const form = new FormData(event.currentTarget);
-    const photos = form.getAll("referencePhotos").filter((f): f is File => f instanceof File && f.size > 0);
 
     try {
       // Sequentieel, niet parallel: elke foto wordt eerst in de browser
       // gecomprimeerd (canvas), en tien tegelijk laat een gsm merkbaar
       // haperen. Een paar seconden extra bij het versturen weegt niet op
       // tegen een bevroren formulier.
-      const referencePhotoUrls: string[] = [];
-      for (const photo of photos) {
-        referencePhotoUrls.push(await uploadOrderReferencePhoto(photo));
+      const customCakeItems: OrderItem[] = [];
+      for (const entry of customCakes) {
+        const imageUrls: string[] = [];
+        for (const photo of entry.photos) {
+          imageUrls.push(await uploadOrderReferencePhoto(photo));
+        }
+        customCakeItems.push(customCakeToOrderItem(entry, customCake?.price ?? 0, imageUrls));
       }
+      const submittedItems = [...customCakeItems, ...selectedIds.map((id) => toOrderItem(id, selections[id]))];
 
       await submitOrder({
         customer_name: String(form.get("name") || ""),
         customer_email: String(form.get("email") || ""),
         customer_phone: String(form.get("phone") || ""),
         occasion: String(form.get("occasion") || ""),
-        servings: estimateServings(items),
+        servings: estimateServings(submittedItems),
         flavor: [
           ...customCakes.map((entry) => `${customCakeLabel(entry)} (voor ${entry.qty || 1} personen)`),
           ...selectedIds.map((id) => describeSelection(selections[id])),
@@ -210,8 +220,9 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         allergens: allergenChoices,
         pickup_date: String(form.get("pickupDate") || ""),
         message: String(form.get("message") || "") || null,
-        reference_photo_urls: referencePhotoUrls,
-        items,
+        // Leeg voor nieuwe bestellingen: foto's hangen nu aan hun eigen taart.
+        reference_photo_urls: [],
+        items: submittedItems,
         price: total,
       });
       setSubmitted(true);
@@ -405,6 +416,24 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                         </select>
                       </label>
                     )}
+
+                    <label className="mt-2 flex flex-col gap-1.5 text-sm font-medium text-cacao">
+                      Inspiratiefoto voor deze taart (optioneel)
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) =>
+                          updateCustomCake(entry.key, { photos: Array.from(e.target.files ?? []) })
+                        }
+                        className="rounded-lg border border-dashed border-cacao/25 bg-cream px-3 py-2 text-sm font-normal text-cacao-soft file:mr-3 file:rounded-full file:border-0 file:bg-cherry file:px-3 file:py-1 file:text-xs file:font-semibold file:text-cream"
+                      />
+                      <span className="text-xs font-normal text-cacao-soft/70">
+                        {entry.photos.length > 0
+                          ? `${entry.photos.length} foto${entry.photos.length === 1 ? "" : "'s"} voor deze taart.`
+                          : "Hoort bij déze taart — zo weet Sophie welk thema bij welke taart past."}
+                      </span>
+                    </label>
                   </div>
                 ))}
 
@@ -521,22 +550,6 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
           )}
         </label>
 
-        <label className="flex flex-col gap-2 text-sm font-medium text-cacao">
-          Inspiratiefoto's (optioneel)
-          <input
-            name="referencePhotos"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => setPhotoCount(e.target.files?.length ?? 0)}
-            className="rounded-xl border border-dashed border-cacao/25 bg-cream px-4 py-3 text-sm text-cacao-soft file:mr-3 file:rounded-full file:border-0 file:bg-cherry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-cream"
-          />
-          <span className="text-xs font-normal text-cacao-soft/70">
-            {photoCount > 0
-              ? `${photoCount} foto${photoCount === 1 ? "" : "'s"} geselecteerd.`
-              : "Optioneel — je mag er meerdere tegelijk kiezen. Dit helpt me je wens beter te begrijpen."}
-          </span>
-        </label>
 
         <label className="flex flex-col gap-2 text-sm font-medium text-cacao sm:col-span-2">
           Speciale wensen of bericht

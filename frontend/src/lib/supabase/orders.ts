@@ -15,17 +15,29 @@ function referencePhotoStoragePath(url: string): string | null {
   return url.slice(index + marker.length);
 }
 
+type PhotoFields = Pick<Order, "reference_photo_url" | "reference_photo_urls" | "items">;
+
 /**
- * Alle inspiratiefoto's van een bestelling, ongeacht wanneer ze geplaatst is.
- * Bestellingen van voor 0016 hebben er hoogstens één, in het oude
- * `reference_photo_url`; nieuwe schrijven enkel naar de array. Eén plek die
- * beide samenvoegt, zodat de rest van de app maar met één lijst hoeft te
- * werken.
+ * Inspiratiefoto's die aan de bestelling als geheel hangen. Alleen oudere
+ * bestellingen hebben die nog: eerst één losse `reference_photo_url`, later
+ * een array. Nieuwe bestellingen hangen elke foto aan de taart waar ze bij
+ * hoort (zie `itemPhotos`), want een bestelling met twee gepersonaliseerde
+ * taarten heeft twee verschillende thema's.
  */
-export function orderPhotos(order: Pick<Order, "reference_photo_url" | "reference_photo_urls">): string[] {
+export function legacyOrderPhotos(order: Pick<Order, "reference_photo_url" | "reference_photo_urls">): string[] {
   const urls = order.reference_photo_urls ?? [];
   if (urls.length > 0) return urls;
   return order.reference_photo_url ? [order.reference_photo_url] : [];
+}
+
+/** Alle foto's die aan afzonderlijke bestellijnen hangen, in volgorde van de lijnen. */
+export function itemPhotos(order: Pick<Order, "items">): string[] {
+  return (order.items ?? []).flatMap((item) => item.imageUrls ?? []);
+}
+
+/** Elke foto van een bestelling, waar ze ook aan hangt — wat je nodig hebt om ze allemaal op te ruimen. */
+export function orderPhotos(order: PhotoFields): string[] {
+  return [...legacyOrderPhotos(order), ...itemPhotos(order)];
 }
 
 /** Storefront: submit a new order (pending, unauthenticated). */

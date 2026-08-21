@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ALLERGENS, hasAllergen } from "../../lib/data";
 import { getInvoiceProofUrl } from "../../lib/supabase/bookkeeping";
 import { formatPriceEUR } from "../../lib/supabase/format";
-import { orderPhotos } from "../../lib/supabase/orders";
+import { itemPhotos, legacyOrderPhotos } from "../../lib/supabase/orders";
 import type { Invoice, Order, OrderDeclineFields, OrderEditableFields, OrderItem } from "../../lib/supabase/types";
 import { DeclineOrderModal } from "./DeclineOrderModal";
 import type { SupersededInvoice } from "./useOrders";
@@ -354,6 +354,19 @@ function OrderItemsEditor({ items, onChange }: { items: OrderItem[]; onChange: (
             >
               <TrashIcon />
             </button>
+            {(item.imageUrls?.length ?? 0) > 0 && (
+              <div className="flex basis-full flex-wrap gap-2">
+                {item.imageUrls!.map((url, index) => (
+                  <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+                    <img
+                      src={url}
+                      alt={`Inspiratiefoto ${index + 1} voor "${item.label}"`}
+                      className="h-16 w-16 rounded-md object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         <button
@@ -427,9 +440,16 @@ export function OrderCard({
   const [pickupDate, setPickupDate] = useState(order.pickup_date);
   const [message, setMessage] = useState(order.message ?? "");
   const [items, setItems] = useState<OrderItem[]>(order.items ?? []);
-  const photos = orderPhotos(order);
   const [unlocked, setUnlocked] = useState<Set<FieldKey>>(new Set());
   const isEditableStatus = !readOnly && (order.status === "pending" || order.status === "accepted");
+
+  // Foto's die aan een taart hangen worden bij die taart getoond, in de
+  // items-editor. Dit blok toont enkel wat daar niet thuishoort: de losse
+  // foto's van oudere bestellingen, en — als er geen editor is (gearchiveerd,
+  // geweigerd, kalenderweergave) — alles, want anders is er nergens een plek.
+  const photos = isEditableStatus
+    ? legacyOrderPhotos(order)
+    : [...legacyOrderPhotos(order), ...itemPhotos(order)];
 
   const hasItems = items.length > 0;
   const itemsTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
