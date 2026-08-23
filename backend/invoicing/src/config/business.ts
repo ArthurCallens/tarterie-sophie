@@ -11,10 +11,11 @@ export const BUSINESS = {
   email: "sophie.cardon@live.be",
   phone: "+32 487 45 97 78",
 
-  // Where the "new order — check your dashboard" internal notification goes.
-  // Currently Arthur's inbox while the site is being built out — change this
-  // to Sophie's own address once she's ready to receive these directly.
-  adminNotificationEmail: "arthur_callens@hotmail.com",
+  // Where the internal notifications land: a new order came in, someone asked
+  // a question, someone signed up for a workshop. Sophie's own inbox — these
+  // are hers to act on. Note this is the same mailbox the site sends *from*
+  // (connected via Composio), so these arrive as mail from herself.
+  adminNotificationEmail: "sophie.cardon@live.be",
   vatNumber: null as string | null, // e.g. "BE0123456789" if she ever registers for VAT
   vatExemptionNotice: "Vrijgesteld van btw, art. 56bis W.BTW (vrijstellingsregeling kleine ondernemingen).",
 

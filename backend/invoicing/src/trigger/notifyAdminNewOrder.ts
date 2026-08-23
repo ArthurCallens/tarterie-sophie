@@ -11,8 +11,7 @@ type NotifyAdminNewOrderPayload = {
 /**
  * Internal "check your dashboard" nudge — fired alongside
  * sendOrderConfirmationEmail whenever a customer submits a new order, so
- * Sophie (currently BUSINESS.adminNotificationEmail, while the site is
- * being built out) doesn't have to remember to poll /admin/orders. Same
+ * Sophie doesn't have to remember to poll /admin/orders. Same
  * trigger chain: order-confirmation-webhook Edge Function, itself fired by
  * the Postgres `after insert on orders` trigger — see
  * 0013_order_confirmation_email.sql.
