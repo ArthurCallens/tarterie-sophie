@@ -19,6 +19,8 @@ type Selection = {
   label: string;
   qty: number;
   unitPrice: number;
+  /** How many people one unit serves — only meaningful for "klassieker" (a whole cake). */
+  servingsPerUnit: number;
 };
 
 /**
@@ -47,7 +49,8 @@ function customCakeLabel(entry: CustomCakeEntry): string {
 }
 
 function describeSelection(selection: Selection): string {
-  if (selection.category === "klassieker") return `${selection.qty}x ${selection.label} (taart voor 8 pers.)`;
+  if (selection.category === "klassieker")
+    return `${selection.qty}x ${selection.label} (taart voor ${selection.servingsPerUnit} pers.)`;
   return `${selection.label} (${selection.qty} stuks)`;
 }
 
@@ -83,16 +86,18 @@ function customCakeToOrderItem(entry: CustomCakeEntry, unitPrice: number, imageU
  * each chosen item already say what's needed. This derives a rough
  * headcount purely for internal record-keeping (admin summary line,
  * legacy invoice fallback): custom cake counts by person, a klassieker by
- * its fixed 8-person size; klein gebak pieces aren't really "people" so
- * they don't contribute.
+ * its own per-product serving size; klein gebak pieces aren't really
+ * "people" so they don't contribute. Reads straight from `selections`
+ * (rather than the built `OrderItem[]`) because `OrderItem` has no
+ * serving-size field of its own.
  */
-function estimateServings(items: OrderItem[]): number {
-  const total = items.reduce((sum, item) => {
-    if (item.category === "custom") return sum + item.quantity;
-    if (item.category === "klassieker") return sum + item.quantity * 8;
-    return sum;
+function estimateServings(customCakes: CustomCakeEntry[], selections: Record<string, Selection>): number {
+  const customTotal = customCakes.reduce((sum, entry) => sum + (entry.qty || 1), 0);
+  const classicsTotal = Object.values(selections).reduce((sum, selection) => {
+    if (selection.category !== "klassieker") return sum;
+    return sum + selection.qty * selection.servingsPerUnit;
   }, 0);
-  return Math.max(1, total);
+  return Math.max(1, customTotal + classicsTotal);
 }
 
 /** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
@@ -113,13 +118,19 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
     setAllergenChoices((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
   }
 
-  function toggleSelection(id: string, label: string, category: OrderItemCategory, unitPrice: number) {
+  function toggleSelection(
+    id: string,
+    label: string,
+    category: OrderItemCategory,
+    unitPrice: number,
+    servingsPerUnit: number,
+  ) {
     setSelections((prev) => {
       if (prev[id]) {
         const { [id]: _removed, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [id]: { label, category, unitPrice, qty: 1 } };
+      return { ...prev, [id]: { label, category, unitPrice, servingsPerUnit, qty: 1 } };
     });
   }
 
@@ -212,7 +223,7 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
         customer_email: String(form.get("email") || ""),
         customer_phone: String(form.get("phone") || ""),
         occasion: String(form.get("occasion") || ""),
-        servings: estimateServings(submittedItems),
+        servings: estimateServings(customCakes, selections),
         flavor: [
           ...customCakes.map((entry) => `${customCakeLabel(entry)} (voor ${entry.qty || 1} personen)`),
           ...selectedIds.map((id) => describeSelection(selections[id])),
@@ -462,10 +473,12 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                   <CakeChoiceCard
                     key={product.id}
                     product={product}
-                    priceSuffix="/ taart (8 pers.)"
-                    unitLabel="Aantal taarten? (telkens voor 8 personen)"
+                    priceSuffix={`/ taart (${product.servings_per_unit} pers.)`}
+                    unitLabel={`Aantal taarten? (telkens voor ${product.servings_per_unit} personen)`}
                     selection={selections[product.id]}
-                    onToggle={() => toggleSelection(product.id, product.name, "klassieker", product.price)}
+                    onToggle={() =>
+                      toggleSelection(product.id, product.name, "klassieker", product.price, product.servings_per_unit)
+                    }
                     onQtyChange={(value) => setQty(product.id, value)}
                     onQtyBlur={() => deselectIfEmpty(product.id)}
                   />
@@ -487,7 +500,9 @@ export function OrderTicketForm({ products, customCake }: OrderTicketFormProps) 
                     priceSuffix="/ stuk"
                     unitLabel="Aantal stuks?"
                     selection={selections[product.id]}
-                    onToggle={() => toggleSelection(product.id, product.name, "klein-gebak", product.price)}
+                    onToggle={() =>
+                      toggleSelection(product.id, product.name, "klein-gebak", product.price, product.servings_per_unit)
+                    }
                     onQtyChange={(value) => setQty(product.id, value)}
                     onQtyBlur={() => deselectIfEmpty(product.id)}
                   />

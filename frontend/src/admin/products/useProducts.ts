@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { deleteProduct, getAllProductsAdmin, setProductActive, setProductFeatured } from "../../lib/supabase/products";
+import {
+  deleteProduct,
+  getAllProductsAdmin,
+  reorderProducts,
+  setProductActive,
+  setProductFeatured,
+} from "../../lib/supabase/products";
 import type { Product } from "../../lib/supabase/types";
 
 export const MAX_FEATURED_PRODUCTS = 4;
@@ -52,5 +58,23 @@ export function useProducts() {
     await refresh();
   }
 
-  return { products, loading, error, refresh, toggleActive, toggleFeatured, featuredError, remove };
+  /**
+   * Reordering only makes sense within a category — the storefront always
+   * queries products scoped to one category (or, for featured, grouped by
+   * category then sort_order), so cross-category sort_order values never
+   * interact. `products` here is already sorted category-then-sort_order
+   * (getAllProductsAdmin), so filtering by category preserves order.
+   */
+  async function moveProduct(product: Product, direction: -1 | 1) {
+    const group = products.filter((p) => p.category === product.category);
+    const index = group.findIndex((p) => p.id === product.id);
+    const target = index + direction;
+    if (target < 0 || target >= group.length) return;
+    const reordered = [...group];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    await reorderProducts(reordered);
+    await refresh();
+  }
+
+  return { products, loading, error, refresh, toggleActive, toggleFeatured, featuredError, remove, moveProduct };
 }

@@ -1,8 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FocusEvent, type FormEvent } from "react";
 import { uploadBookkeepingProof } from "../../lib/supabase/bookkeeping";
 import type { ExpenseEntryInput, ExpenseType, IncomeEntryInput } from "../../lib/supabase/types";
 
 const inputClass = "rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry";
+
+/** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select();
+}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -93,6 +98,7 @@ export function BookkeepingEntryModal(props: BookkeepingEntryModalProps) {
               step="0.01"
               min="0.01"
               value={amount}
+              onFocus={selectOnFocus}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="Bv. 24,50"
               className={inputClass}

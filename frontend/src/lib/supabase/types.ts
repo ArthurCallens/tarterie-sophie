@@ -141,6 +141,8 @@ export type Product = {
   active: boolean;
   featured: boolean;
   sort_order: number;
+  /** How many people one unit serves (only meaningful for "klassieker" — a whole cake). Default 8. */
+  servings_per_unit: number;
   created_at: string;
   updated_at: string;
   images: ProductImage[];
@@ -155,6 +157,7 @@ export type ProductInput = {
   active: boolean;
   featured: boolean;
   sort_order: number;
+  servings_per_unit: number;
 };
 
 export type CustomCakeGalleryImage = {

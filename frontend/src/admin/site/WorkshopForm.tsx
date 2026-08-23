@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FocusEvent, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { uploadSiteImage } from "../../lib/supabase/pageContent";
 import { createWorkshop, getWorkshopById, updateWorkshop } from "../../lib/supabase/workshops";
@@ -18,6 +18,11 @@ const EMPTY_INPUT: WorkshopInput = {
 };
 
 const inputClass = "rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry";
+
+/** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select();
+}
 
 export function WorkshopForm() {
   const { id } = useParams();
@@ -134,6 +139,7 @@ export function WorkshopForm() {
               step="0.01"
               min="0"
               value={input.price ?? ""}
+              onFocus={selectOnFocus}
               onChange={(e) => setInput({ ...input, price: e.target.value === "" ? null : Number(e.target.value) })}
               className={inputClass}
             />

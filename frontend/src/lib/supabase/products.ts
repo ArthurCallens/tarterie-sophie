@@ -10,7 +10,7 @@ function sortImages(product: Product): Product {
 }
 
 function normalize(row: Product): Product {
-  return sortImages({ ...row, price: Number(row.price) });
+  return sortImages({ ...row, price: Number(row.price), servings_per_unit: Number(row.servings_per_unit) });
 }
 
 /** Storefront: products flagged for the Home page, in display order. */
@@ -83,6 +83,14 @@ export async function setProductActive(id: string, active: boolean): Promise<voi
 export async function setProductFeatured(id: string, featured: boolean): Promise<void> {
   const { error } = await supabase.from("products").update({ featured }).eq("id", id);
   if (error) throw error;
+}
+
+/** Persists a new display order (within one category) — index in the given array becomes the row's sort_order. */
+export async function reorderProducts(products: Product[]): Promise<void> {
+  const updates = products.map((p, index) => supabase.from("products").update({ sort_order: index }).eq("id", p.id));
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
 }
 
 /** Deletes the product's Storage files, then the row (product_images cascades). */

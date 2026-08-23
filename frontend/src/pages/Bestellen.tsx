@@ -88,7 +88,7 @@ export function Bestellen() {
                   name={cake.name}
                   note={cake.description ?? undefined}
                   price={formatPriceEUR(cake.price)}
-                  priceSuffix="/ taart (8 pers.)"
+                  priceSuffix={`/ taart (${cake.servings_per_unit} pers.)`}
                   image={cake.images[0]?.image_url ?? ""}
                   alt={cake.images[0]?.alt_text ?? cake.name}
                   allergens={cake.allergens}

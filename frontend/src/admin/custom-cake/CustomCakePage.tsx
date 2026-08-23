@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FocusEvent, type FormEvent } from "react";
 import {
   addCustomCakeGalleryImage,
   deleteCustomCakeGalleryImage,
@@ -9,6 +9,11 @@ import {
 import type { CustomCakeGalleryImage, CustomCakeOfferInput } from "../../lib/supabase/types";
 import { ImageManager, type ManagedImage } from "../components/ImageManager";
 import { useCustomCakeOffer } from "./useCustomCakeOffer";
+
+/** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select();
+}
 
 export function CustomCakePage() {
   const { offer, setOffer, loading, error, refresh } = useCustomCakeOffer();
@@ -108,8 +113,9 @@ export function CustomCakePage() {
               type="number"
               step="0.01"
               min="0"
-              value={input.price}
-              onChange={(e) => setInput({ ...input, price: Number(e.target.value) })}
+              value={input.price === 0 ? "" : input.price}
+              onFocus={selectOnFocus}
+              onChange={(e) => setInput({ ...input, price: e.target.value === "" ? 0 : Number(e.target.value) })}
               className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
             />
           </label>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FocusEvent, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ALLERGENS } from "../../lib/data";
 import {
@@ -24,7 +24,13 @@ const EMPTY_INPUT: ProductInput = {
   active: true,
   featured: false,
   sort_order: 0,
+  servings_per_unit: 8,
 };
+
+/** Auto-select an input's current value on focus, so typing a new number doesn't require deleting the old one first. */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select();
+}
 
 export function ProductForm() {
   const { id } = useParams();
@@ -52,6 +58,7 @@ export function ProductForm() {
           active: p.active,
           featured: p.featured,
           sort_order: p.sort_order,
+          servings_per_unit: p.servings_per_unit,
         });
       }
       setLoading(false);
@@ -151,13 +158,14 @@ export function ProductForm() {
               type="number"
               step="0.01"
               min="0"
-              value={input.price}
-              onChange={(e) => setInput({ ...input, price: Number(e.target.value) })}
+              value={input.price === 0 ? "" : input.price}
+              onFocus={selectOnFocus}
+              onChange={(e) => setInput({ ...input, price: e.target.value === "" ? 0 : Number(e.target.value) })}
               className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
             />
             <span className="text-xs font-normal text-cacao-soft">
               {input.category === "klassieker"
-                ? "Prijs voor de volledige taart (telkens voor 8 personen)."
+                ? `Prijs voor de volledige taart (telkens voor ${input.servings_per_unit || 8} personen).`
                 : "Prijs per stuk."}
             </span>
           </label>
@@ -174,6 +182,28 @@ export function ProductForm() {
             </select>
           </label>
         </div>
+
+        {input.category === "klassieker" && (
+          <label className="flex max-w-[calc(50%-0.625rem)] flex-col gap-2 text-sm font-medium text-cacao">
+            Aantal personen per taart
+            <input
+              required
+              type="number"
+              step="1"
+              min="1"
+              value={input.servings_per_unit === 0 ? "" : input.servings_per_unit}
+              onFocus={selectOnFocus}
+              onChange={(e) =>
+                setInput({ ...input, servings_per_unit: e.target.value === "" ? 0 : Number(e.target.value) })
+              }
+              onBlur={() => input.servings_per_unit === 0 && setInput({ ...input, servings_per_unit: 8 })}
+              className="rounded-xl border border-cacao/15 bg-cream px-4 py-3 text-base text-cacao focus:border-cherry"
+            />
+            <span className="text-xs font-normal text-cacao-soft">
+              Standaard 8 — pas aan als deze taart een ander aantal personen bedient.
+            </span>
+          </label>
+        )}
 
         <fieldset>
           <legend className="text-sm font-medium text-cacao">Allergenen</legend>
