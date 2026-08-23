@@ -16,7 +16,10 @@ export const BUSINESS = {
   // are hers to act on. Note this is the same mailbox the site sends *from*
   // (connected via Composio), so these arrive as mail from herself.
   adminNotificationEmail: "sophie.cardon@live.be",
-  vatNumber: null as string | null, // e.g. "BE0123456789" if she ever registers for VAT
+  // Haar ondernemingsnummer, dat onder de vrijstellingsregeling tegelijk haar
+  // btw-identificatienummer is. Ze rekent geen btw aan (zie de notice
+  // hieronder), maar het nummer hoort wél op elke factuur te staan.
+  vatNumber: "BE 0508.554.667" as string | null,
   vatExemptionNotice: "Vrijgesteld van btw, art. 56bis W.BTW (vrijstellingsregeling kleine ondernemingen).",
 
   // Bank details for the "pay by transfer" section + SEPA/EPC QR code.
@@ -28,6 +31,9 @@ export const BUSINESS = {
   // in met de code die letterlijk in Sophie's bankapp staat.
   bic: null as string | null,
 
+  // Moet de gestructureerde mededeling noemen, niet het factuurnummer: een
+  // Belgische OGM vervangt de vrije mededeling, en die twee door elkaar halen
+  // is precies hoe een betaling onherkenbaar binnenkomt.
   invoiceFooterNote:
-    "Gelieve het factuurnummer als mededeling te gebruiken bij overschrijving. Betalen kan ook cash bij afhaling.",
+    "Gelieve de gestructureerde mededeling te gebruiken bij overschrijving. Betalen kan ook cash bij afhaling.",
 } as const;
