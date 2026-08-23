@@ -159,7 +159,12 @@ export function renderInvoicePdf({
       .fontSize(10)
       .font("Helvetica")
       .fillColor("#333333")
-      .text(`Bankoverschrijving naar IBAN ${BUSINESS.iban} (BIC ${BUSINESS.bic}),`, 50, y + 20, { width: 320 })
+      .text(
+        `Bankoverschrijving naar IBAN ${BUSINESS.iban}${BUSINESS.bic ? ` (BIC ${BUSINESS.bic})` : ""},`,
+        50,
+        y + 20,
+        { width: 320 },
+      )
       .text(`met gestructureerde mededeling ${paymentReference}, of contant bij afhaling.`, { width: 320 })
       .text("Scan de QR-code hiernaast om de overschrijving in je bankapp klaar te zetten.", { width: 320 });
 

@@ -49,7 +49,7 @@ async function renderAndUpload(order: OrderRow, invoiceNumber: string, paymentRe
   const qrPayload = buildEpcQrPayload({
     name: BUSINESS.name,
     iban: BUSINESS.iban,
-    bic: BUSINESS.bic,
+    bic: BUSINESS.bic ?? undefined,
     amount: order.price ?? 0,
     remittanceInfo: paymentReference,
   });
