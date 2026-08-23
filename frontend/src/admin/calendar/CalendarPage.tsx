@@ -117,12 +117,12 @@ export function CalendarPage() {
                 >
                   <span>{day.getDate()}</span>
                   {dayOrders.length > 0 && (
-                    <span className="rounded-full bg-cherry px-2 py-0.5 text-[10px] font-semibold text-cream">
+                    <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-cream">
                       {dayOrders.length} bestelling{dayOrders.length > 1 ? "en" : ""}
                     </span>
                   )}
                   {dayPending.length > 0 && (
-                    <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-cream">
+                    <span className="rounded-full bg-cherry px-2 py-0.5 text-[10px] font-semibold text-cream">
                       {dayPending.length} wachtend
                     </span>
                   )}
@@ -144,7 +144,7 @@ export function CalendarPage() {
                       <Link
                         key={order.id}
                         to={`/admin/orders?focus=${order.id}`}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-green-600/40 bg-green-600/10 px-4 py-2.5 text-sm text-cacao hover:border-green-600"
+                        className="flex items-center justify-between gap-2 rounded-xl border border-cherry/40 bg-cherry/10 px-4 py-2.5 text-sm text-cacao hover:border-cherry"
                       >
                         <span className="font-medium">{order.customer_name}</span>
                         <span className="text-xs text-cacao-soft">
